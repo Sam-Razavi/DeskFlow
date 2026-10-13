@@ -21,6 +21,7 @@ Built with **Angular 22**, **FastAPI**, **PostgreSQL** and **Redis**, containeri
 </p>
 <p>
   <img src="docs/screenshots/audit.png" width="49%" alt="Admin audit log with filters and CSV export" />
+  <img src="docs/screenshots/assistant.png" width="49%" alt="Troubleshooting assistant on a ticket, suggesting steps and citing the knowledge-base article it used" />
 </p>
 
 ## Features

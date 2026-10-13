@@ -35,6 +35,29 @@ export const routes: Routes = [
         ],
       },
       {
+        path: 'kb',
+        children: [
+          {
+            path: '',
+            loadComponent: () => import('./features/kb/kb-list').then((m) => m.KbList),
+          },
+          {
+            path: 'new',
+            canActivate: [roleGuard('agent', 'admin')],
+            loadComponent: () => import('./features/kb/kb-form').then((m) => m.KbForm),
+          },
+          {
+            path: ':id/edit',
+            canActivate: [roleGuard('agent', 'admin')],
+            loadComponent: () => import('./features/kb/kb-form').then((m) => m.KbForm),
+          },
+          {
+            path: ':id',
+            loadComponent: () => import('./features/kb/kb-article').then((m) => m.KbArticle),
+          },
+        ],
+      },
+      {
         path: 'assets',
         children: [
           {

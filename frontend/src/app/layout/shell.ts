@@ -23,7 +23,8 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'Tickets', icon: 'confirmation_number', path: '/tickets' },
   { label: 'Assets', icon: 'devices', path: '/assets', roles: ['agent', 'admin'] },
   { label: 'My equipment', icon: 'laptop_mac', path: '/assets', roles: ['requester'] },
-  // Knowledge Base and Audit Log are added as each module lands.
+  { label: 'Knowledge base', icon: 'menu_book', path: '/kb' },
+  // The Audit Log screen is added once it exists.
 ];
 
 @Component({

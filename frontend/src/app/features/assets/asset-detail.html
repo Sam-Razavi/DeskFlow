@@ -1,0 +1,122 @@
+<a mat-button [routerLink]="'/assets'" class="back">
+  <mat-icon>arrow_back</mat-icon>{{ auth.isStaff() ? 'All assets' : 'My equipment' }}
+</a>
+
+@if (loading() && !asset()) {
+  <p class="state">Loading…</p>
+} @else if (notFound()) {
+  <p class="state" role="alert">This asset doesn't exist or you don't have access to it.</p>
+} @else if (asset(); as a) {
+  <header class="head">
+    <h1>
+      <span class="head__tag">{{ a.asset_tag }}</span> {{ a.manufacturer }} {{ a.model }}
+    </h1>
+    <div class="head__badges">
+      <app-asset-status [status]="a.status" />
+      <app-warranty-badge [state]="a.warranty_state" />
+    </div>
+  </header>
+
+  @if (error(); as message) {
+    <p class="error" role="alert">{{ message }}</p>
+  }
+
+  <div class="layout">
+    <section class="main">
+      <mat-card appearance="outlined">
+        <mat-card-content>
+          <dl class="facts">
+            <dt>Type</dt>
+            <dd>{{ typeLabels[a.type] }}</dd>
+            <dt>Serial number</dt>
+            <dd>{{ a.serial_number ?? '—' }}</dd>
+            <dt>Location</dt>
+            <dd>{{ a.location ?? '—' }}</dd>
+            <dt>Purchased</dt>
+            <dd>{{ a.purchase_date ? (a.purchase_date | date: 'mediumDate') : '—' }}</dd>
+            <dt>Warranty until</dt>
+            <dd>
+              {{ a.warranty_expires_on ? (a.warranty_expires_on | date: 'mediumDate') : '—' }}
+            </dd>
+            <dt>Assigned to</dt>
+            <dd>
+              @if (canAssign()) {
+                <mat-form-field subscriptSizing="dynamic" class="assignee">
+                  <mat-select
+                    [value]="a.assigned_to?.id ?? inStock"
+                    (selectionChange)="assign($event.value)"
+                    [disabled]="busy()"
+                    aria-label="Assigned to"
+                  >
+                    <mat-option [value]="inStock">Nobody (in stock)</mat-option>
+                    @for (p of people(); track p.id) {
+                      <mat-option [value]="p.id">{{ p.full_name }}</mat-option>
+                    }
+                  </mat-select>
+                </mat-form-field>
+              } @else {
+                {{ a.assigned_to?.full_name ?? '—' }}
+              }
+            </dd>
+          </dl>
+          @if (a.notes) {
+            <h2>Notes</h2>
+            <p class="notes">{{ a.notes }}</p>
+          }
+        </mat-card-content>
+      </mat-card>
+
+      @if (auth.isStaff()) {
+        <h2>Tickets about this asset</h2>
+        <ul class="tickets">
+          @for (t of tickets(); track t.id) {
+            <li>
+              <a [routerLink]="['/tickets', t.id]">#{{ t.id }} {{ t.title }}</a>
+              <app-badge [value]="t.status" />
+            </li>
+          } @empty {
+            <li class="muted">No tickets are linked to this asset.</li>
+          }
+        </ul>
+      }
+    </section>
+
+    @if (auth.isStaff()) {
+      <aside class="side">
+        <a mat-stroked-button [routerLink]="['/assets', a.id, 'edit']" class="side__button">
+          <mat-icon>edit</mat-icon>Edit details
+        </a>
+
+        @for (next of actions(); track next) {
+          <button
+            mat-stroked-button
+            type="button"
+            class="side__button"
+            [class.danger]="next === 'retired' && confirmingRetire()"
+            [disabled]="busy()"
+            (click)="changeStatus(next)"
+          >
+            {{
+              next === 'retired' && confirmingRetire()
+                ? 'Confirm: retire for good'
+                : transitionLabel(a.status, next)
+            }}
+          </button>
+        }
+        @if (confirmingRetire()) {
+          <button mat-button type="button" (click)="confirmingRetire.set(false)">Keep it</button>
+        }
+
+        <h2>History</h2>
+        <ol class="history">
+          @for (h of history(); track h.id) {
+            <li>
+              <strong>{{ h.actor?.full_name ?? 'System' }}</strong> {{ describe(h) }}
+              <span class="history__time">{{ h.created_at | date: 'short' }}</span>
+            </li>
+          }
+        </ol>
+      </aside>
+    }
+  </div>
+}

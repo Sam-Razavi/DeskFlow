@@ -4,10 +4,11 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.access import STAFF_ROLES, is_staff, load_ticket
 from app.api.deps import CurrentUser, SessionDep, require_roles
 from app.models.audit import AuditLog
 from app.models.ticket import Category, Priority, Ticket, TicketComment, TicketStatus
-from app.models.user import Role, User
+from app.models.user import User
 from app.schemas.audit import AuditLogRead
 from app.schemas.ticket import (
     AssigneeChange,
@@ -24,26 +25,13 @@ from app.services.workflow import can_transition
 
 router = APIRouter(prefix="/tickets", tags=["tickets"])
 
-STAFF_ROLES = (Role.AGENT, Role.ADMIN)
 StaffUser = Annotated[User, Depends(require_roles(*STAFF_ROLES))]
 
 TRACKED_FIELDS = ("title", "description", "status", "priority", "category", "assignee_id")
 
 
-def _is_staff(user: User) -> bool:
-    return user.role in STAFF_ROLES
-
-
 def _snapshot(ticket: Ticket) -> dict[str, object]:
     return {f: getattr(ticket, f) for f in TRACKED_FIELDS}
-
-
-async def _get_ticket(session: AsyncSession, ticket_id: int, user: User) -> Ticket:
-    ticket = await session.get(Ticket, ticket_id)
-    # Requesters get a 404 (not 403) for other people's tickets so ids can't be probed.
-    if ticket is None or (not _is_staff(user) and ticket.requester_id != user.id):
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Ticket not found")
-    return ticket
 
 
 async def _require_staff_user(session: AsyncSession, user_id: int, what: str) -> User:
@@ -80,7 +68,7 @@ async def _ticket_ids_in_sla_state(
 @router.post("", status_code=status.HTTP_201_CREATED)
 async def create_ticket(session: SessionDep, user: CurrentUser, body: TicketCreate) -> TicketRead:
     requester_id = user.id
-    if _is_staff(user) and body.requester_id is not None:
+    if is_staff(user) and body.requester_id is not None:
         requester_id = (await _require_staff_user(session, body.requester_id, "requester")).id
 
     now = sla.utcnow()
@@ -125,7 +113,7 @@ async def list_tickets(
     offset: Annotated[int, Query(ge=0)] = 0,
 ) -> TicketPage:
     stmt = select(Ticket)
-    if not _is_staff(user):
+    if not is_staff(user):
         stmt = stmt.where(Ticket.requester_id == user.id)
     if status_:
         stmt = stmt.where(Ticket.status == status_)
@@ -153,17 +141,17 @@ async def list_tickets(
 
 @router.get("/{ticket_id}")
 async def get_ticket(session: SessionDep, user: CurrentUser, ticket_id: int) -> TicketRead:
-    return TicketRead.model_validate(await _get_ticket(session, ticket_id, user))
+    return TicketRead.model_validate(await load_ticket(session, ticket_id, user))
 
 
 @router.patch("/{ticket_id}")
 async def update_ticket(
     session: SessionDep, user: CurrentUser, ticket_id: int, body: TicketUpdate
 ) -> TicketRead:
-    ticket = await _get_ticket(session, ticket_id, user)
+    ticket = await load_ticket(session, ticket_id, user)
     updates = body.model_dump(exclude_unset=True, exclude_none=True)
 
-    if not _is_staff(user):
+    if not is_staff(user):
         if ticket.status != TicketStatus.NEW:
             raise HTTPException(status.HTTP_403_FORBIDDEN, "Ticket can no longer be edited")
         if updates.keys() & {"priority", "category"}:
@@ -199,7 +187,7 @@ def _apply_status(ticket: Ticket, target: TicketStatus) -> None:
 async def change_status(
     session: SessionDep, user: CurrentUser, ticket_id: int, body: StatusChange
 ) -> TicketRead:
-    ticket = await _get_ticket(session, ticket_id, user)
+    ticket = await load_ticket(session, ticket_id, user)
     if not can_transition(ticket.status, body.status, user.role):
         raise HTTPException(
             status.HTTP_409_CONFLICT, f"Cannot move ticket from {ticket.status} to {body.status}"
@@ -218,13 +206,13 @@ async def change_status(
 async def assign_ticket(
     session: SessionDep, user: StaffUser, ticket_id: int, body: AssigneeChange
 ) -> TicketRead:
-    ticket = await _get_ticket(session, ticket_id, user)
+    ticket = await load_ticket(session, ticket_id, user)
     if ticket.status == TicketStatus.CLOSED:
         raise HTTPException(status.HTTP_409_CONFLICT, "Closed tickets cannot be reassigned")
 
     if body.assignee_id is not None:
         assignee = await _require_staff_user(session, body.assignee_id, "assignee")
-        if not _is_staff(assignee):
+        if not is_staff(assignee):
             raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Assignee must be an agent")
 
     before = _snapshot(ticket)
@@ -243,9 +231,9 @@ async def assign_ticket(
 async def list_comments(
     session: SessionDep, user: CurrentUser, ticket_id: int
 ) -> list[CommentRead]:
-    await _get_ticket(session, ticket_id, user)
+    await load_ticket(session, ticket_id, user)
     stmt = select(TicketComment).where(TicketComment.ticket_id == ticket_id)
-    if not _is_staff(user):
+    if not is_staff(user):
         stmt = stmt.where(TicketComment.is_internal.is_(False))
     comments = await session.scalars(stmt.order_by(TicketComment.created_at, TicketComment.id))
     return [CommentRead.model_validate(c) for c in comments]
@@ -255,10 +243,10 @@ async def list_comments(
 async def add_comment(
     session: SessionDep, user: CurrentUser, ticket_id: int, body: CommentCreate
 ) -> CommentRead:
-    ticket = await _get_ticket(session, ticket_id, user)
+    ticket = await load_ticket(session, ticket_id, user)
     if ticket.status == TicketStatus.CLOSED:
         raise HTTPException(status.HTTP_409_CONFLICT, "Ticket is closed")
-    if body.is_internal and not _is_staff(user):
+    if body.is_internal and not is_staff(user):
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Only staff can add internal notes")
 
     comment = TicketComment(
@@ -269,7 +257,7 @@ async def add_comment(
     changes: dict[str, object] = {"comment_id": comment.id, "is_internal": comment.is_internal}
     # The first public reply from staff (other than the requester) stops the response clock.
     if (
-        _is_staff(user)
+        is_staff(user)
         and not body.is_internal
         and user.id != ticket.requester_id
         and ticket.first_response_at is None
@@ -286,7 +274,7 @@ async def add_comment(
 async def ticket_history(
     session: SessionDep, user: StaffUser, ticket_id: int
 ) -> list[AuditLogRead]:
-    await _get_ticket(session, ticket_id, user)
+    await load_ticket(session, ticket_id, user)
     rows = await session.scalars(
         select(AuditLog)
         .where(AuditLog.entity_type == "ticket", AuditLog.entity_id == ticket_id)

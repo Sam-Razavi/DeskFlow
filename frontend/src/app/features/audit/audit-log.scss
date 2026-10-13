@@ -1,0 +1,108 @@
+.list-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+
+  h1 {
+    margin: 0;
+  }
+}
+
+.intro {
+  margin: 4px 0 0;
+  color: var(--mat-sys-on-surface-variant);
+}
+
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin: 16px 0;
+
+  &__id {
+    width: 110px;
+  }
+}
+
+.table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--mat-sys-outline-variant);
+  border-radius: 12px;
+  transition: opacity 0.15s;
+
+  &--loading {
+    opacity: 0.6;
+  }
+}
+
+table {
+  width: 100%;
+}
+
+td {
+  vertical-align: top;
+  padding-top: 10px;
+  padding-bottom: 10px;
+}
+
+.nowrap {
+  white-space: nowrap;
+}
+
+.capitalize {
+  text-transform: capitalize;
+}
+
+.action {
+  display: inline-block;
+
+  // Sentence case, so acronyms such as SLA keep their capitals.
+  &::first-letter {
+    text-transform: uppercase;
+  }
+}
+
+.link {
+  color: var(--mat-sys-primary);
+  text-decoration: none;
+  text-transform: capitalize;
+
+  &:hover {
+    text-decoration: underline;
+  }
+}
+
+.details {
+  overflow-wrap: anywhere;
+}
+
+.raw {
+  margin-top: 2px;
+  font: var(--mat-sys-label-small);
+  color: var(--mat-sys-on-surface-variant);
+
+  summary {
+    cursor: pointer;
+  }
+
+  pre {
+    margin: 4px 0 0;
+    padding: 8px 12px;
+    border-radius: 8px;
+    background: var(--mat-sys-surface-container-high);
+    overflow-x: auto;
+    font-size: 0.8rem;
+  }
+}
+
+.state {
+  padding: 24px;
+  text-align: center;
+  color: var(--mat-sys-on-surface-variant);
+
+  &--error {
+    color: var(--mat-sys-error);
+  }
+}

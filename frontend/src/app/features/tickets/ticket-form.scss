@@ -1,0 +1,25 @@
+.ticket-form {
+  max-width: 720px;
+
+  &__fields {
+    display: flex;
+    flex-direction: column;
+    margin-top: 16px;
+  }
+
+  &__row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    column-gap: 16px;
+  }
+
+  &__error {
+    color: var(--mat-sys-error);
+  }
+
+  &__actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+  }
+}

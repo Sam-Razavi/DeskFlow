@@ -1,0 +1,54 @@
+<mat-card appearance="outlined" class="ticket-form">
+  <mat-card-header>
+    <mat-card-title>New ticket</mat-card-title>
+    <mat-card-subtitle>Tell us what's wrong and we'll get it sorted.</mat-card-subtitle>
+  </mat-card-header>
+
+  <mat-card-content>
+    <form [formGroup]="form" (ngSubmit)="submit()" class="ticket-form__fields">
+      <mat-form-field>
+        <mat-label>Title</mat-label>
+        <input matInput formControlName="title" maxlength="200" />
+        @if (form.controls.title.hasError('minlength')) {
+          <mat-error>Please enter at least 3 characters</mat-error>
+        }
+      </mat-form-field>
+
+      <mat-form-field>
+        <mat-label>Description</mat-label>
+        <textarea matInput formControlName="description" rows="6"></textarea>
+      </mat-form-field>
+
+      <div class="ticket-form__row">
+        <mat-form-field>
+          <mat-label>Category</mat-label>
+          <mat-select formControlName="category">
+            @for (c of categories; track c) {
+              <mat-option [value]="c">{{ categoryLabels[c] }}</mat-option>
+            }
+          </mat-select>
+        </mat-form-field>
+
+        <mat-form-field>
+          <mat-label>Priority</mat-label>
+          <mat-select formControlName="priority">
+            @for (p of priorities; track p) {
+              <mat-option [value]="p">{{ priorityLabels[p] }}</mat-option>
+            }
+          </mat-select>
+        </mat-form-field>
+      </div>
+
+      @if (error(); as message) {
+        <p class="ticket-form__error" role="alert">{{ message }}</p>
+      }
+
+      <div class="ticket-form__actions">
+        <a mat-button routerLink="/tickets">Cancel</a>
+        <button mat-flat-button type="submit" [disabled]="form.invalid || saving()">
+          Create ticket
+        </button>
+      </div>
+    </form>
+  </mat-card-content>
+</mat-card>

@@ -1,7 +1,17 @@
 from fastapi import APIRouter, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.routes import assets, audit, auth, dashboard, health, ticket_assets, tickets, users
+from app.api.routes import (
+    articles,
+    assets,
+    audit,
+    auth,
+    dashboard,
+    health,
+    ticket_assets,
+    tickets,
+    users,
+)
 from app.core.config import get_settings
 
 settings = get_settings()
@@ -23,6 +33,7 @@ api.include_router(users.router)
 api.include_router(tickets.router)
 api.include_router(ticket_assets.router)
 api.include_router(assets.router)
+api.include_router(articles.router)
 api.include_router(audit.router)
 api.include_router(dashboard.router)
 app.include_router(api)

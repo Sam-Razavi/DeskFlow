@@ -1,6 +1,6 @@
 import enum
 from collections.abc import Mapping
-from datetime import datetime
+from datetime import date, datetime
 from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -12,7 +12,7 @@ from app.models.user import User
 def _jsonable(value: Any) -> Any:
     if isinstance(value, enum.Enum):
         return value.value
-    if isinstance(value, datetime):
+    if isinstance(value, datetime | date):
         return value.isoformat()
     return value
 

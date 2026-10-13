@@ -21,3 +21,10 @@ class AuditLogRead(BaseModel):
 class AuditLogPage(BaseModel):
     items: list[AuditLogRead]
     total: int
+
+
+class AuditFacets(BaseModel):
+    """The values that exist in the log, for building filter dropdowns."""
+
+    entity_types: list[str]
+    actions: list[str]

@@ -37,3 +37,102 @@ body {
   height: 100%;
 }
 /* You can add global styles to this file, and also import other style files */
+
+// Rendered Markdown (knowledge base articles and the editor preview).
+.markdown {
+  line-height: 1.65;
+  overflow-wrap: anywhere;
+
+  h1,
+  h2,
+  h3 {
+    margin: 1.6em 0 0.5em;
+    line-height: 1.25;
+  }
+
+  h1 {
+    font: var(--mat-sys-headline-medium);
+  }
+
+  h2 {
+    font: var(--mat-sys-title-large);
+  }
+
+  h3 {
+    font: var(--mat-sys-title-medium);
+  }
+
+  > :first-child {
+    margin-top: 0;
+  }
+
+  p,
+  ul,
+  ol,
+  table,
+  pre,
+  blockquote {
+    margin: 0 0 1em;
+  }
+
+  ul,
+  ol {
+    padding-left: 1.5em;
+  }
+
+  li {
+    margin: 0.25em 0;
+  }
+
+  a {
+    color: var(--mat-sys-primary);
+  }
+
+  code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.9em;
+    padding: 0.1em 0.35em;
+    border-radius: 4px;
+    background: var(--mat-sys-surface-container-high);
+  }
+
+  pre {
+    padding: 12px 16px;
+    border-radius: 8px;
+    overflow-x: auto;
+    background: var(--mat-sys-surface-container-high);
+
+    code {
+      padding: 0;
+      background: none;
+    }
+  }
+
+  blockquote {
+    padding: 4px 16px;
+    border-left: 4px solid var(--mat-sys-outline-variant);
+    color: var(--mat-sys-on-surface-variant);
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    display: block;
+    overflow-x: auto;
+
+    th,
+    td {
+      text-align: left;
+      padding: 8px 12px;
+      border-bottom: 1px solid var(--mat-sys-outline-variant);
+    }
+
+    th {
+      font-weight: 600;
+    }
+  }
+
+  img {
+    max-width: 100%;
+  }
+}

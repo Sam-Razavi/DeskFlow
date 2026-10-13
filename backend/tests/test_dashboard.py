@@ -87,3 +87,30 @@ async def test_sla_list_filter_uses_the_same_rules(client, session, people):
     nothing = (await client.get("/api/tickets?sla=at_risk", headers=agent_headers)).json()
     assert nothing["items"] == []
     assert (await client.get("/api/tickets?sla=bogus", headers=agent_headers)).status_code == 422
+
+
+async def test_summary_includes_equipment_figures_for_staff_only(client, people):
+    from datetime import UTC, datetime, timedelta
+
+    from tests.test_assets import create_asset, set_status
+
+    req, req_headers = people["req"]
+    _, agent_headers = people["agent"]
+    soon = (datetime.now(UTC).date() + timedelta(days=5)).isoformat()
+    repair = await create_asset(client, agent_headers, serial_number="1")
+    expiring = await create_asset(
+        client, agent_headers, serial_number="2", warranty_expires_on=soon
+    )
+    retired = await create_asset(client, agent_headers, serial_number="3", warranty_expires_on=soon)
+    await set_status(client, agent_headers, repair["id"], "in_repair")
+    await set_status(client, agent_headers, retired["id"], "retired")
+    assert expiring["warranty_state"] == "expiring"
+
+    staff = await summary(client, agent_headers)
+    assert staff["assets_in_repair"] == 1
+    assert staff["warranty_expiring"] == 1  # the retired one no longer counts
+
+    requester = await summary(client, req_headers)
+    assert requester["assets_in_repair"] == 0
+    assert requester["warranty_expiring"] == 0
+    assert req.id

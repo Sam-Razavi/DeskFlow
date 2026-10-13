@@ -1,0 +1,70 @@
+.list-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+
+  h1 {
+    margin: 0;
+  }
+}
+
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin: 16px 0;
+
+  &__search {
+    flex: 1 1 240px;
+  }
+}
+
+.table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--mat-sys-outline-variant);
+  border-radius: 12px;
+  transition: opacity 0.15s;
+
+  &--loading {
+    opacity: 0.6;
+  }
+}
+
+table {
+  width: 100%;
+}
+
+.link,
+.nowrap {
+  white-space: nowrap; // tags and serials are identifiers: never break them across lines
+}
+
+.link {
+  color: var(--mat-sys-primary);
+  text-decoration: none;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+
+  &:hover {
+    text-decoration: underline;
+  }
+}
+
+.warranty {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.state {
+  padding: 24px;
+  text-align: center;
+  color: var(--mat-sys-on-surface-variant);
+
+  &--error {
+    color: var(--mat-sys-error);
+  }
+}

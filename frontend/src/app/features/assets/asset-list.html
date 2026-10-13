@@ -1,0 +1,128 @@
+<div class="list-header">
+  <h1>{{ auth.isStaff() ? 'Assets' : 'My equipment' }}</h1>
+  @if (auth.isStaff()) {
+    <a mat-flat-button routerLink="/assets/new"><mat-icon>add</mat-icon>New asset</a>
+  }
+</div>
+
+<form class="filters" [formGroup]="filters">
+  <mat-form-field class="filters__search" subscriptSizing="dynamic">
+    <mat-label>Search</mat-label>
+    <input matInput formControlName="q" placeholder="Tag, model, serial or location" />
+    <mat-icon matSuffix>search</mat-icon>
+  </mat-form-field>
+
+  @if (auth.isStaff()) {
+    <mat-form-field subscriptSizing="dynamic">
+      <mat-label>Status</mat-label>
+      <mat-select formControlName="status">
+        <mat-option [value]="null">Any</mat-option>
+        @for (s of statuses; track s) {
+          <mat-option [value]="s">{{ statusLabels[s] }}</mat-option>
+        }
+      </mat-select>
+    </mat-form-field>
+  }
+
+  <mat-form-field subscriptSizing="dynamic">
+    <mat-label>Type</mat-label>
+    <mat-select formControlName="type">
+      <mat-option [value]="null">Any</mat-option>
+      @for (t of types; track t) {
+        <mat-option [value]="t">{{ typeLabels[t] }}</mat-option>
+      }
+    </mat-select>
+  </mat-form-field>
+
+  <mat-form-field subscriptSizing="dynamic">
+    <mat-label>Warranty</mat-label>
+    <mat-select formControlName="warranty">
+      <mat-option [value]="null">Any</mat-option>
+      <mat-option value="expiring">Expiring soon</mat-option>
+      <mat-option value="expired">Expired</mat-option>
+    </mat-select>
+  </mat-form-field>
+
+  @if (hasFilters) {
+    <button mat-button type="button" (click)="clearFilters()">Clear</button>
+  }
+</form>
+
+@if (failed()) {
+  <p class="state state--error" role="alert">
+    Could not load assets.
+    <button mat-button type="button" (click)="reload()">Retry</button>
+  </p>
+}
+
+<div class="table-wrap" [class.table-wrap--loading]="loading()">
+  <table mat-table [dataSource]="rows()">
+    <ng-container matColumnDef="tag">
+      <th mat-header-cell *matHeaderCellDef>Tag</th>
+      <td mat-cell *matCellDef="let a">
+        <a class="link" [routerLink]="['/assets', a.id]">{{ a.asset_tag }}</a>
+      </td>
+    </ng-container>
+    <ng-container matColumnDef="type">
+      <th mat-header-cell *matHeaderCellDef>Type</th>
+      <td mat-cell *matCellDef="let a">{{ typeLabel(a.type) }}</td>
+    </ng-container>
+    <ng-container matColumnDef="device">
+      <th mat-header-cell *matHeaderCellDef>Device</th>
+      <td mat-cell *matCellDef="let a">{{ a.manufacturer }} {{ a.model }}</td>
+    </ng-container>
+    <ng-container matColumnDef="serial">
+      <th mat-header-cell *matHeaderCellDef>Serial</th>
+      <td mat-cell *matCellDef="let a" class="nowrap">{{ a.serial_number ?? '—' }}</td>
+    </ng-container>
+    <ng-container matColumnDef="status">
+      <th mat-header-cell *matHeaderCellDef>Status</th>
+      <td mat-cell *matCellDef="let a"><app-asset-status [status]="a.status" /></td>
+    </ng-container>
+    <ng-container matColumnDef="assignee">
+      <th mat-header-cell *matHeaderCellDef>Assigned to</th>
+      <td mat-cell *matCellDef="let a">{{ a.assigned_to?.full_name ?? '—' }}</td>
+    </ng-container>
+    <ng-container matColumnDef="location">
+      <th mat-header-cell *matHeaderCellDef>Location</th>
+      <td mat-cell *matCellDef="let a">{{ a.location ?? '—' }}</td>
+    </ng-container>
+    <ng-container matColumnDef="warranty">
+      <th mat-header-cell *matHeaderCellDef>Warranty</th>
+      <td mat-cell *matCellDef="let a">
+        @if (a.warranty_expires_on) {
+          <span class="warranty">
+            {{ a.warranty_expires_on | date: 'mediumDate' }}
+            <app-warranty-badge [state]="a.warranty_state" />
+          </span>
+        } @else {
+          —
+        }
+      </td>
+    </ng-container>
+
+    <tr mat-header-row *matHeaderRowDef="columns()"></tr>
+    <tr mat-row *matRowDef="let row; columns: columns()"></tr>
+  </table>
+
+  @if (!loading() && !failed() && rows().length === 0) {
+    <p class="state">
+      {{
+        hasFilters
+          ? 'No assets match these filters.'
+          : auth.isStaff()
+            ? 'No assets yet.'
+            : 'No equipment is assigned to you.'
+      }}
+    </p>
+  }
+</div>
+
+<mat-paginator
+  [length]="total()"
+  [pageSize]="pageSize()"
+  [pageIndex]="pageIndex()"
+  [pageSizeOptions]="[10, 25, 50]"
+  (page)="onPage($event)"
+  aria-label="Select page of assets"
+/>

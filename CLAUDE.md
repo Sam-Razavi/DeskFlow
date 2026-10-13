@@ -20,4 +20,7 @@ Guidance for Claude Code when working in this repository.
     and the dashboard all call them, so don't re-implement the state logic elsewhere.
 - `frontend/`: Angular 22 + Angular Material, requires Node >= 22.22.3 (or 24).
   - Checks: `npx prettier --check "src/**/*.{ts,html,scss}" && npx ng test --watch=false && npx ng build`
+  - `ng test` can serve stale compiled code from `node_modules/.vitest-cache`, so a source change may
+    not show up in results. If a result looks wrong, or before trusting a green run, delete
+    `node_modules/.vitest-cache` and `.angular` and run again. CI starts clean, so it is unaffected.
 - Schema changes go through Alembic migrations (`uv run alembic revision --autogenerate -m "..."`).

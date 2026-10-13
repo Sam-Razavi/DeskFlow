@@ -11,6 +11,10 @@ Built with **Angular 22**, **FastAPI**, **PostgreSQL** and **Redis**, containeri
   <img src="docs/screenshots/tickets.png" width="32%" alt="Ticket list with SLA status, filters and priority badges" />
   <img src="docs/screenshots/ticket-detail.png" width="32%" alt="Ticket detail with service-level panel, conversation and history" />
 </p>
+<p>
+  <img src="docs/screenshots/assets.png" width="49%" alt="Hardware inventory with status, assignee and warranty warnings" />
+  <img src="docs/screenshots/asset-detail.png" width="49%" alt="Asset detail with assignment, linked tickets and history" />
+</p>
 
 ## Features
 
@@ -19,10 +23,10 @@ Built with **Angular 22**, **FastAPI**, **PostgreSQL** and **Redis**, containeri
 | Authentication: JWT access and refresh tokens, role-based access (Requester / Agent / Admin) | ✅ |
 | Tickets: status workflow, priorities P1–P4, categories, comments with staff-only internal notes, assignment, search, filters and pagination | ✅ |
 | SLA timers: response and resolution targets per priority, clock paused while a ticket is Pending, a background worker that flags tickets at risk or breached | ✅ |
-| Audit log: append-only record of every ticket change (who, what, when, before/after), shown as a per-ticket history for staff and queryable by admins via the API. Admin UI and asset coverage still to come | 🟡 |
-| Hardware inventory: assets, lifecycle status, assignment to users, links to tickets | 🚧 |
+| Audit log: append-only record of every ticket and asset change (who, what, when, before/after), shown as a history on each ticket and asset for staff, and queryable by admins via the API. A dedicated admin screen is still to come | 🟡 |
+| Hardware inventory: generated asset tags, lifecycle status (in stock / assigned / in repair / retired), assignment to users, warranty tracking, ticket links, per-asset history. Requesters get a read-only "My equipment" view | ✅ |
 | Knowledge base: Markdown articles, draft/published, Postgres full-text search | 🚧 |
-| Dashboard: open tickets, SLA breached / at risk, unassigned, my queue, and a priority chart, with each figure linking to the matching ticket list | ✅ |
+| Dashboard: open tickets, SLA breached / at risk, unassigned, my queue, assets in repair, warranties expiring, and a priority chart, with each figure linking to the matching ticket or asset list | ✅ |
 
 **Planned (phase 2):** AI troubleshooting assistant (retrieval over *published* KB articles only, via pgvector), email notifications, CSV asset import/export, attachments.
 
@@ -42,6 +46,11 @@ Built with **Angular 22**, **FastAPI**, **PostgreSQL** and **Redis**, containeri
 
   The first public reply from staff (not an internal note, and not the requester) stops the response clock. Moving a ticket to **Pending** pauses both clocks, and when it leaves Pending the deadlines move back by the time spent waiting. A ticket is *at risk* once 75% of its resolution window has passed and *breached* when a deadline passes. Times are wall-clock, not business hours. Requesters don't see SLA information.
 - **One source of truth:** `backend/app/services/sla.py` decides every SLA state. The API, the dashboard, the list filter and the worker all call it, so they can't disagree.
+- **Inventory:** assets get a generated tag (`DF-00042`, from a database sequence so it is safe under concurrency) unless you supply one. Status is *in stock*, *assigned*, *in repair* or *retired*:
+  - Assigning is the only way into *assigned* and unassigning the only way out, so an assignee can never be left behind. A database constraint enforces that an asset is assigned exactly when it has an assignee.
+  - Sending an assigned asset for repair or retiring it takes it back from the user. *Retired* is final.
+  - Tag and serial number are unique. Warranties show *expiring soon* within 30 days, and retired equipment drops out of warranty reminders.
+  - Staff manage everything. Requesters see only equipment assigned to them, and can link their own equipment to their own tickets. Tickets and assets link both ways and each link is audited on both records.
 - **Audit trail:** every write records who did it and the before/after values in the same database transaction as the change, so a rolled-back request leaves no trace.
 
 ## Architecture
@@ -149,14 +158,14 @@ backend/
   app/
     api/         routes and dependencies (auth, role checks)
     core/        settings, database, security
-    models/      SQLAlchemy models (users, tickets, comments, audit logs)
+    models/      SQLAlchemy models (users, tickets, comments, assets, audit logs)
     schemas/     Pydantic request and response models
-    services/    business rules (ticket workflow, audit recording)
+    services/    business rules (ticket and asset workflows, SLA, audit recording)
   alembic/       migrations
   tests/
 frontend/
   src/app/
     core/        auth, ticket and user API services, interceptor, guards
     layout/      app shell (sidenav and toolbar)
-    features/    one folder per feature (login, dashboard, tickets, ...)
+    features/    one folder per feature (login, dashboard, tickets, assets)
 ```

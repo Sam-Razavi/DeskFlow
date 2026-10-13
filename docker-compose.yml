@@ -41,8 +41,9 @@ services:
 
   worker:
     build: ./backend
-    command: ["arq", "app.worker.WorkerSettings"]
     environment:
+      # The same image as the api; this variable is the only difference.
+      SERVICE_ROLE: worker
       DATABASE_URL: postgresql+asyncpg://deskflow:deskflow@db:5432/deskflow
       REDIS_URL: redis://redis:6379/0
       JWT_SECRET: local-docker-secret-not-for-production-use

@@ -23,8 +23,17 @@ jobs:
           --health-cmd "pg_isready -U deskflow"
           --health-interval 5s
           --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-retries 10
     env:
       DATABASE_URL: postgresql+asyncpg://deskflow:deskflow@localhost:5432/deskflow_test
+      # Database 15 is the one the tests are allowed to empty.
+      REDIS_URL: redis://localhost:6379/15
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6

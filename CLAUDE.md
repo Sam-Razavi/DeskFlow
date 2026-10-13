@@ -22,7 +22,6 @@ Guidance for Claude Code when working in this repository.
     configured with a root directory and variables, documented in the README.
   - SLA rules live in `app/services/sla.py` and are the single source of truth: the API, the worker
     and the dashboard all call them, so don't re-implement the state logic elsewhere.
-- `backend/app/services/assistant.py`: the AI assistant. It must stay grounded: only retrieved published articles go to the model, and uncited answers are dropped.
 - `frontend/`: Angular 22 + Angular Material, requires Node >= 22.22.3 (or 24).
   - Checks: `npx prettier --check "src/**/*.{ts,html,scss}" && npx ng test --watch=false && npx ng build`
   - `ng test` can serve stale compiled code from `node_modules/.vitest-cache`, so a source change may

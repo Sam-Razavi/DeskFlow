@@ -1,0 +1,83 @@
+<mat-card appearance="outlined" class="asset-form">
+  <mat-card-header>
+    <mat-card-title>{{ editing ? 'Edit asset' : 'New asset' }}</mat-card-title>
+    @if (!editing) {
+      <mat-card-subtitle>New equipment starts in stock until it is assigned.</mat-card-subtitle>
+    }
+  </mat-card-header>
+
+  <mat-card-content>
+    <form [formGroup]="form" (ngSubmit)="submit()" class="asset-form__fields">
+      <div class="asset-form__row">
+        <mat-form-field>
+          <mat-label>Asset tag</mat-label>
+          <input matInput formControlName="asset_tag" placeholder="Generated if left blank" />
+          @if (form.controls.asset_tag.hasError('pattern')) {
+            <mat-error>Letters, numbers, dots, dashes and underscores only</mat-error>
+          }
+        </mat-form-field>
+
+        <mat-form-field>
+          <mat-label>Type</mat-label>
+          <mat-select formControlName="type">
+            @for (t of types; track t) {
+              <mat-option [value]="t">{{ typeLabels[t] }}</mat-option>
+            }
+          </mat-select>
+        </mat-form-field>
+      </div>
+
+      <div class="asset-form__row">
+        <mat-form-field>
+          <mat-label>Manufacturer</mat-label>
+          <input matInput formControlName="manufacturer" />
+        </mat-form-field>
+        <mat-form-field>
+          <mat-label>Model</mat-label>
+          <input matInput formControlName="model" />
+        </mat-form-field>
+      </div>
+
+      <div class="asset-form__row">
+        <mat-form-field>
+          <mat-label>Serial number</mat-label>
+          <input matInput formControlName="serial_number" />
+        </mat-form-field>
+        <mat-form-field>
+          <mat-label>Location</mat-label>
+          <input matInput formControlName="location" />
+        </mat-form-field>
+      </div>
+
+      <div class="asset-form__row">
+        <mat-form-field>
+          <mat-label>Purchase date</mat-label>
+          <input matInput type="date" formControlName="purchase_date" />
+        </mat-form-field>
+        <mat-form-field>
+          <mat-label>Warranty expires</mat-label>
+          <input matInput type="date" formControlName="warranty_expires_on" />
+          @if (form.hasError('warrantyBeforePurchase')) {
+            <mat-error>Cannot be before the purchase date</mat-error>
+          }
+        </mat-form-field>
+      </div>
+
+      <mat-form-field>
+        <mat-label>Notes</mat-label>
+        <textarea matInput formControlName="notes" rows="3"></textarea>
+      </mat-form-field>
+
+      @if (error(); as message) {
+        <p class="asset-form__error" role="alert">{{ message }}</p>
+      }
+
+      <div class="asset-form__actions">
+        <a mat-button [routerLink]="editing ? ['/assets', id()] : ['/assets']">Cancel</a>
+        <button mat-flat-button type="submit" [disabled]="form.invalid || saving() || loading()">
+          {{ editing ? 'Save changes' : 'Create asset' }}
+        </button>
+      </div>
+    </form>
+  </mat-card-content>
+</mat-card>

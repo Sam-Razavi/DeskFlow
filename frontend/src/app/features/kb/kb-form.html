@@ -1,0 +1,56 @@
+<h1 class="heading">{{ editing ? 'Edit article' : 'New article' }}</h1>
+
+<form [formGroup]="form" (ngSubmit)="submit()" class="editor">
+  <div class="editor__meta">
+    <mat-form-field class="editor__title">
+      <mat-label>Title</mat-label>
+      <input matInput formControlName="title" maxlength="200" />
+      @if (form.controls.title.hasError('minlength')) {
+        <mat-error>Please enter at least 3 characters</mat-error>
+      }
+    </mat-form-field>
+
+    <mat-form-field>
+      <mat-label>Category</mat-label>
+      <mat-select formControlName="category">
+        @for (c of categories; track c) {
+          <mat-option [value]="c">{{ categoryLabels[c] }}</mat-option>
+        }
+      </mat-select>
+    </mat-form-field>
+  </div>
+
+  <div class="editor__panes">
+    <mat-form-field class="editor__source">
+      <mat-label>Article (Markdown)</mat-label>
+      <textarea
+        matInput
+        formControlName="body"
+        rows="22"
+        spellcheck="true"
+        placeholder="## A heading&#10;&#10;1. A numbered step&#10;2. Another step"
+      ></textarea>
+      <mat-hint>Headings, lists, tables, links and code blocks are supported.</mat-hint>
+    </mat-form-field>
+
+    <section class="editor__preview" aria-label="Preview">
+      <h2>Preview</h2>
+      @if (preview()) {
+        <div class="markdown" [innerHTML]="preview() | markdown"></div>
+      } @else {
+        <p class="editor__empty">Start writing and the article appears here.</p>
+      }
+    </section>
+  </div>
+
+  @if (error(); as message) {
+    <p class="editor__error" role="alert">{{ message }}</p>
+  }
+
+  <div class="editor__actions">
+    <a mat-button [routerLink]="editing ? ['/kb', id()] : ['/kb']">Cancel</a>
+    <button mat-flat-button type="submit" [disabled]="form.invalid || saving() || loading()">
+      {{ editing ? 'Save changes' : 'Save draft' }}
+    </button>
+  </div>
+</form>

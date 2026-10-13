@@ -19,6 +19,9 @@ Built with **Angular 22**, **FastAPI**, **PostgreSQL** and **Redis**, containeri
   <img src="docs/screenshots/kb.png" width="49%" alt="Knowledge base search with highlighted matches" />
   <img src="docs/screenshots/kb-editor.png" width="49%" alt="Markdown article editor with live preview" />
 </p>
+<p>
+  <img src="docs/screenshots/audit.png" width="49%" alt="Admin audit log with filters and CSV export" />
+</p>
 
 ## Features
 
@@ -27,7 +30,7 @@ Built with **Angular 22**, **FastAPI**, **PostgreSQL** and **Redis**, containeri
 | Authentication: JWT access and refresh tokens, role-based access (Requester / Agent / Admin) | ✅ |
 | Tickets: status workflow, priorities P1–P4, categories, comments with staff-only internal notes, assignment, search, filters and pagination | ✅ |
 | SLA timers: response and resolution targets per priority, clock paused while a ticket is Pending, a background worker that flags tickets at risk or breached | ✅ |
-| Audit log: append-only record of every ticket, asset and article change (who, what, when, before/after), shown as a history on each ticket, asset and article for staff, and queryable by admins via the API. A dedicated admin screen is still to come | 🟡 |
+| Audit log: append-only record of every ticket, asset and article change (who, what, when, before/after), shown as a history on each record and in an admin screen with filters (record type, action, person, record number, dates) and a CSV export | ✅ |
 | Hardware inventory: generated asset tags, lifecycle status (in stock / assigned / in repair / retired), assignment to users, warranty tracking, ticket links, per-asset history. Requesters get a read-only "My equipment" view | ✅ |
 | Knowledge base: Markdown articles with a draft/published workflow, Postgres full-text search (ranking, stemming, phrases, highlighted snippets), a live-preview editor, and article suggestions while a ticket is being written | ✅ |
 | Dashboard: open tickets, SLA breached / at risk, unassigned, my queue, assets in repair, warranties expiring, and a priority chart, with each figure linking to the matching ticket or asset list | ✅ |
@@ -61,6 +64,7 @@ Built with **Angular 22**, **FastAPI**, **PostgreSQL** and **Redis**, containeri
   - **Suggestions** (`/api/articles/suggest`) power the "These articles might help" box on the new-ticket form and the staff view of a ticket. Articles containing every word of the title come first. Only when there are none does it fall back to articles containing any word, dropping ones that are much weaker than the best.
   - **Safe rendering:** article Markdown is rendered with `marked` and bound through Angular's HTML sanitiser, which removes scripts, event handlers and `javascript:` links. Tests cover hostile content.
   - Staff can delete drafts. Deleting a published article is admin-only. Every change is audited.
+- **Audit log screen (admins):** filter by record type, action, person, record number and date range, expand any entry to its raw JSON, and export the filtered result as CSV. Entries are only ever inserted, never edited or deleted. The export is capped at 10,000 rows and neutralises spreadsheet formulas (a name like `=HYPERLINK(...)` is written as text), so opening it in Excel cannot run anything.
 - **Audit trail:** every write records who did it and the before/after values in the same database transaction as the change, so a rolled-back request leaves no trace.
 
 ## Architecture

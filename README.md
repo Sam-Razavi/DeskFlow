@@ -7,8 +7,8 @@
 Built with **Angular 22**, **FastAPI**, **PostgreSQL** and **Redis**, containerised with Docker and deployed on Railway.
 
 <p>
-  <img src="docs/screenshots/login.png" width="49%" alt="Login screen" />
-  <img src="docs/screenshots/dashboard.png" width="49%" alt="Dashboard" />
+  <img src="docs/screenshots/tickets.png" width="49%" alt="Ticket list with filters, status and priority badges" />
+  <img src="docs/screenshots/ticket-detail.png" width="49%" alt="Ticket detail with conversation, internal note, assignment and history" />
 </p>
 
 ## Features
@@ -16,14 +16,21 @@ Built with **Angular 22**, **FastAPI**, **PostgreSQL** and **Redis**, containeri
 | Module | Status |
 |---|---|
 | Authentication: JWT access and refresh tokens, role-based access (Requester / Agent / Admin) | ✅ |
-| Tickets: status workflow, priorities P1–P4, categories, comments, assignment | 🚧 |
+| Tickets: status workflow, priorities P1–P4, categories, comments with staff-only internal notes, assignment, search, filters and pagination | ✅ |
 | SLA timers: response and resolution targets per priority, background breach detection, pause while pending | 🚧 |
-| Audit log: append-only record of every change (who, what, when, before/after) | 🚧 |
+| Audit log: append-only record of every ticket change (who, what, when, before/after), shown as a per-ticket history for staff and queryable by admins via the API. Admin UI and asset coverage still to come | 🟡 |
 | Hardware inventory: assets, lifecycle status, assignment to users, links to tickets | 🚧 |
 | Knowledge base: Markdown articles, draft/published, Postgres full-text search | 🚧 |
-| Dashboard: open tickets by priority, SLA breaches, personal queue | 🚧 |
+| Dashboard: open tickets by priority, SLA breaches, personal queue | 🚧 (placeholder) |
 
 **Planned (phase 2):** AI troubleshooting assistant (retrieval over *published* KB articles only, via pgvector), email notifications, CSV asset import/export, attachments.
+
+## How tickets work
+
+- **Workflow:** `New → In progress ⇄ Pending → Resolved → Closed`. Resolved tickets can be reopened, and Closed is final. Invalid moves are rejected with `409`. The rules live in one place, `backend/app/services/workflow.py`.
+- **Roles:** requesters see and edit only their own tickets (and only while still New), can add comments, and can confirm or reopen a resolved ticket. Agents and admins see everything, change priority, assign tickets and write internal notes. Another user's ticket returns `404`, not `403`, so ids can't be probed.
+- **Assignment:** only agents and admins can be assignees. Assigning a New ticket moves it to In progress.
+- **Audit trail:** every write records who did it and the before/after values in the same database transaction as the change, so a rolled-back request leaves no trace.
 
 ## Architecture
 
@@ -123,13 +130,14 @@ backend/
   app/
     api/         routes and dependencies (auth, role checks)
     core/        settings, database, security
-    models/      SQLAlchemy models
+    models/      SQLAlchemy models (users, tickets, comments, audit logs)
     schemas/     Pydantic request and response models
+    services/    business rules (ticket workflow, audit recording)
   alembic/       migrations
   tests/
 frontend/
   src/app/
-    core/        auth service, interceptor, guards
+    core/        auth, ticket and user API services, interceptor, guards
     layout/      app shell (sidenav and toolbar)
     features/    one folder per feature (login, dashboard, tickets, ...)
 ```

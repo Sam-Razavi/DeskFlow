@@ -1,11 +1,14 @@
 from collections import Counter
+from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from app.api.deps import CurrentUser, SessionDep
+from app.models.asset import Asset, AssetStatus
 from app.models.ticket import Priority, Ticket, TicketStatus
 from app.models.user import Role
+from app.schemas.asset import WARRANTY_WARNING_DAYS
 from app.schemas.dashboard import DashboardSummary
 from app.services import sla
 from app.services.sla import SlaState
@@ -46,6 +49,27 @@ async def summary(session: SessionDep, user: CurrentUser) -> DashboardSummary:
         breached += state == SlaState.BREACHED
         at_risk += state == SlaState.AT_RISK
 
+    in_repair = expiring = 0
+    if user.role != Role.REQUESTER:
+        in_repair = (
+            await session.scalar(
+                select(func.count()).select_from(Asset).where(Asset.status == AssetStatus.IN_REPAIR)
+            )
+        ) or 0
+        today = datetime.now(UTC).date()
+        expiring = (
+            await session.scalar(
+                select(func.count())
+                .select_from(Asset)
+                .where(
+                    Asset.status != AssetStatus.RETIRED,
+                    Asset.warranty_expires_on.between(
+                        today, today + timedelta(days=WARRANTY_WARNING_DAYS)
+                    ),
+                )
+            )
+        ) or 0
+
     return DashboardSummary(
         open_total=sum(by_priority.values()),
         open_by_priority={p: by_priority[p] for p in Priority},
@@ -54,4 +78,6 @@ async def summary(session: SessionDep, user: CurrentUser) -> DashboardSummary:
         unassigned=unassigned,
         assigned_to_me=mine,
         awaiting_confirmation=awaiting,
+        assets_in_repair=in_repair,
+        warranty_expiring=expiring,
     )

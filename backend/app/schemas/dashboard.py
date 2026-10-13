@@ -11,3 +11,6 @@ class DashboardSummary(BaseModel):
     unassigned: int
     assigned_to_me: int
     awaiting_confirmation: int
+    # Equipment figures; always 0 for requesters, who don't manage inventory.
+    assets_in_repair: int = 0
+    warranty_expiring: int = 0

@@ -1,8 +1,27 @@
 server {
     listen ${PORT};
-    listen [::]:${PORT};
+    ${LISTEN_IPV6}
     root /usr/share/nginx/html;
     index index.html;
+
+    server_tokens off;
+
+    # Security headers. They are set here, once, because nginx drops every inherited add_header in a
+    # location that sets its own, so the locations below use `expires` instead of add_header.
+    #
+    # The CSP only lets scripts run from this origin, plus the one inline script the Angular build
+    # emits (allowed by hash, computed at image build time). Styles need 'unsafe-inline' because
+    # Angular Material sets style attributes; fonts come from Google Fonts.
+    add_header Content-Security-Policy "default-src 'self'; script-src 'self' ${CSP_SCRIPT_HASHES}; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-Frame-Options "DENY" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+    add_header Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=()" always;
+
+    gzip on;
+    gzip_vary on;
+    gzip_min_length 1024;
+    gzip_types text/css application/javascript application/json image/svg+xml;
 
     # Same-origin API: the browser never talks to the backend directly, so no CORS in production.
     location /api/ {
@@ -15,15 +34,15 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
     }
 
-    # Hashed build assets can be cached forever.
+    # Build output is content-hashed, so it can be cached for a year.
     location ~* \.(?:js|css|woff2?|svg|png|ico)$ {
         expires 1y;
-        add_header Cache-Control "public, immutable";
         try_files $uri =404;
     }
 
+    # The page itself must always be revalidated so a new release is picked up straight away.
     location / {
-        add_header Cache-Control "no-cache";
+        expires -1;
         try_files $uri $uri/ /index.html;
     }
 }

@@ -1,0 +1,8 @@
+# Sourced by the nginx image's entrypoint before the config template is rendered.
+# Listening on IPv6 is needed where the platform's private network is IPv6 (Railway), but nginx
+# refuses to start in a container that has no IPv6 at all, so only ask for it when it exists.
+if [ -f /proc/net/if_inet6 ]; then
+  export LISTEN_IPV6="listen [::]:${PORT};"
+else
+  export LISTEN_IPV6=""
+fi

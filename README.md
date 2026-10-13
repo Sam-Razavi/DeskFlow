@@ -89,7 +89,7 @@ Built with **Angular 22**, **FastAPI**, **PostgreSQL** and **Redis**, containeri
 |---|---|
 | Frontend | Angular 22 (standalone components, signals, built-in control flow, functional guards and interceptors), Angular Material 3, marked (Markdown), Vitest |
 | Backend | FastAPI, SQLAlchemy 2.0 (async), Pydantic v2, Alembic, PyJWT, Argon2 password hashing |
-| Data | PostgreSQL 16, Redis 7 (background jobs, caching, rate limiting) |
+| Data | PostgreSQL 16, Redis 7 (background jobs and sign-in rate limiting) |
 | Tooling | uv, Ruff, mypy (strict), pytest, Prettier, GitHub Actions, Docker Compose |
 
 ## Getting started
@@ -151,19 +151,79 @@ npx ng test --watch=false
 
 ## Deployment (Railway)
 
-The project has one Railway project with five services:
+> **What has and hasn't been verified.** The three container images were built and run together with
+> Docker Compose exactly as they run in production: migrations, the worker, nginx, security headers,
+> production-mode start-up and the first-admin bootstrap, with every page exercised in a browser.
+> The Railway steps below follow Railway's documentation as of October 2026 but have **not** been run
+> against a live Railway project, so check them against your dashboard the first time.
 
-1. **PostgreSQL** and **Redis**, from Railway's database templates.
-2. **api**, with root directory `backend/`. Set these variables:
-   - `DATABASE_URL=${{Postgres.DATABASE_URL}}` (the `postgres://` scheme is converted to asyncpg automatically)
-   - `REDIS_URL=${{Redis.REDIS_URL}}`
-   - `JWT_SECRET`: generate with `openssl rand -hex 32`
-   - `ENVIRONMENT=production`
-   - `PORT=8000`, which pins the port so the web service can reach the API over private networking
-3. **worker**, with root directory `backend/` and *Config file path* set to `/backend/railway.worker.json`. It starts `arq app.worker.WorkerSettings` instead of the web server. Give it the same `DATABASE_URL` and `REDIS_URL` as the api. It never runs migrations, so deploy the api first.
-4. **web**, with root directory `frontend/`. Set `API_UPSTREAM=http://${{api.RAILWAY_PRIVATE_DOMAIN}}:8000` and give the service a public domain.
+The repository deliberately contains **no `railway.json`**. Railway's *Config as Code* files are
+deprecated and stop being read on 2026-12-01 ([Railway docs](https://docs.railway.com/infrastructure-as-code)),
+and Railway builds with a `Dockerfile` automatically when it finds one. Everything a service needs is
+therefore a **root directory** and a few **variables**, set once in the dashboard. The same image runs
+as either the API or the worker, chosen by `SERVICE_ROLE`, so no custom start command is needed.
 
-On every deploy the api container runs migrations and seeds the demo accounts (set `SEED_DEMO_DATA=false` to disable seeding).
+Create a project with five services, all deployed from this repository:
+
+| Service | Root directory | Variables |
+|---|---|---|
+| **Postgres** | (database template) | |
+| **Redis** | (database template) | |
+| **api** | `/backend` | `ENVIRONMENT=production`<br>`JWT_SECRET` (at least 32 characters: `openssl rand -hex 32`)<br>`DATABASE_URL=${{Postgres.DATABASE_URL}}`<br>`REDIS_URL=${{Redis.REDIS_URL}}`<br>`PORT=8000`<br>`ADMIN_EMAIL`, `ADMIN_PASSWORD` (see below) |
+| **worker** | `/backend` | `SERVICE_ROLE=worker`<br>`ENVIRONMENT=production`<br>`JWT_SECRET=${{api.JWT_SECRET}}`<br>`DATABASE_URL`, `REDIS_URL` as for the api |
+| **web** | `/frontend` | `API_UPSTREAM=http://${{api.RAILWAY_PRIVATE_DOMAIN}}:8000` |
+
+Then in the dashboard:
+
+- **api** → Settings → set the *Healthcheck Path* to `/api/health`. It needs no public domain.
+- **web** → Networking → *Generate Domain*. nginx listens on `PORT` (default 80): if Railway asks for a
+  target port, enter `80`, or set `PORT` explicitly. This is the only public service.
+- **worker** needs no domain and no health check. Deploy the api first: it owns migrations.
+
+What the containers do on every deploy, which you can rely on:
+
+- The **api** applies database migrations before serving. If a migration fails, the container exits and
+  the previous release keeps running. It then creates the first administrator if `ADMIN_EMAIL` and
+  `ADMIN_PASSWORD` are both set (at least 12 characters; an existing account is never changed, so the
+  variable cannot take over or promote a user). Set both, deploy once, sign in, and you can remove
+  `ADMIN_PASSWORD`.
+- **Demo accounts are off in production.** They have publicly documented passwords, so they are only
+  created in production if you set `SEED_DEMO_DATA=true`. For a public portfolio demo that is the point,
+  but never do it for real data.
+- The app **refuses to start in production** with the built-in development secret or one shorter than
+  32 characters, and rejected secrets are not written to the logs.
+- Sign-in is **rate limited** through Redis: five wrong passwords per person and address, and 30 per
+  address, within 15 minutes. If Redis is down the limit is skipped rather than blocking everyone.
+- The API and worker run as a non-root user with read-only code. The web container sends a strict
+  Content-Security-Policy (the one inline script is allowed by hash, computed at build time), plus
+  `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy` and `Permissions-Policy` headers.
+
+Notes:
+
+- **Private networking.** Environments created after 16 October 2025 resolve private names over IPv4
+  and IPv6, so the default `0.0.0.0` works. In an older, IPv6-only environment set `HOST=::` on the api.
+  The web container only listens on IPv6 when the platform provides it, so it starts anywhere.
+- **Fonts.** The interface loads Roboto and the icon font from Google Fonts, and the CSP allows exactly
+  those hosts. To remove that third-party dependency, self-host the fonts and drop the two hosts from
+  `frontend/nginx.conf.template`.
+- **Optional.** Railway's replacement for config files is a TypeScript `.railway/railway.ts`
+  (`railway config init`). It is not included, because its Dockerfile, root-directory and port syntax
+  was not in the documentation I could read and I would rather not ship configuration I can't verify.
+
+### Environment variables
+
+| Variable | Used by | Default | Purpose |
+|---|---|---|---|
+| `ENVIRONMENT` | api, worker | `development` | `production` turns on the secret checks and stops demo seeding |
+| `JWT_SECRET` | api, worker | dev only | Signs tokens. Required in production |
+| `DATABASE_URL` | api, worker | local Postgres | `postgres://` and `postgresql://` are converted for the async driver |
+| `REDIS_URL` | api, worker | local Redis | Background jobs and sign-in rate limiting |
+| `SERVICE_ROLE` | api, worker | `api` | `worker` runs the background worker instead of the web server |
+| `PORT`, `HOST` | api | `8000`, `0.0.0.0` | Listen port and address |
+| `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `ADMIN_NAME` | api | none | Creates the first admin if missing |
+| `SEED_DEMO_DATA` | api | `true` in development, `false` in production | Demo users and articles |
+| `CORS_ORIGINS` | api | `["http://localhost:4200"]` | Only needed if the API is called from another origin |
+| `API_UPSTREAM`, `PORT` | web | `http://api:8000`, `80` | Where nginx proxies `/api`, and its listen port |
 
 ## Project structure
 

@@ -14,8 +14,12 @@ Guidance for Claude Code when working in this repository.
 
 - `backend/`: FastAPI + async SQLAlchemy + Alembic, managed with `uv`.
   - Checks: `uv run ruff check . && uv run ruff format --check . && uv run mypy app && uv run pytest`
-  - Tests need Postgres with a `deskflow_test` database (`docker compose up -d db`).
-  - Background worker (SLA monitor): `uv run arq app.worker.WorkerSettings`; it needs Redis.
+  - Tests need Postgres with a `deskflow_test` database and Redis (`docker compose up -d db redis`).
+    They use Redis database 15 and empty it, so never point `REDIS_URL` at one you care about.
+  - Background worker (SLA monitor): `uv run arq app.worker.WorkerSettings`; it needs Redis. In
+    containers the same image runs it when `SERVICE_ROLE=worker` (see `backend/start.sh`).
+  - Do not add `railway.json`/`railway.toml`: Railway is retiring them (2026-12-01). Deployment is
+    configured with a root directory and variables, documented in the README.
   - SLA rules live in `app/services/sla.py` and are the single source of truth: the API, the worker
     and the dashboard all call them, so don't re-implement the state logic elsewhere.
 - `frontend/`: Angular 22 + Angular Material, requires Node >= 22.22.3 (or 24).

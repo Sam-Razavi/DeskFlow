@@ -24,7 +24,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'Assets', icon: 'devices', path: '/assets', roles: ['agent', 'admin'] },
   { label: 'My equipment', icon: 'laptop_mac', path: '/assets', roles: ['requester'] },
   { label: 'Knowledge base', icon: 'menu_book', path: '/kb' },
-  // The Audit Log screen is added once it exists.
+  { label: 'Audit log', icon: 'history', path: '/audit', roles: ['admin'] },
 ];
 
 @Component({

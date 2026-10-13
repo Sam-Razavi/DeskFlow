@@ -35,6 +35,11 @@ export const routes: Routes = [
         ],
       },
       {
+        path: 'audit',
+        canActivate: [roleGuard('admin')],
+        loadComponent: () => import('./features/audit/audit-log').then((m) => m.AuditLog),
+      },
+      {
         path: 'kb',
         children: [
           {

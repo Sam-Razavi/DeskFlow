@@ -1,0 +1,137 @@
+<a mat-button routerLink="/tickets" class="back"><mat-icon>arrow_back</mat-icon>All tickets</a>
+
+@if (loading() && !ticket()) {
+  <p class="state">Loading…</p>
+} @else if (notFound()) {
+  <p class="state" role="alert">This ticket doesn't exist or you don't have access to it.</p>
+} @else if (ticket(); as t) {
+  <header class="head">
+    <h1>
+      <span class="head__id">#{{ t.id }}</span> {{ t.title }}
+    </h1>
+    <div class="head__badges">
+      <app-badge [value]="t.status" />
+      <app-badge [value]="t.priority" />
+    </div>
+  </header>
+
+  @if (error(); as message) {
+    <p class="error" role="alert">{{ message }}</p>
+  }
+
+  <div class="layout">
+    <section class="main">
+      <mat-card appearance="outlined">
+        <mat-card-content>
+          <p class="description">{{ t.description }}</p>
+        </mat-card-content>
+      </mat-card>
+
+      <h2>Conversation</h2>
+      @for (c of comments(); track c.id) {
+        <mat-card appearance="outlined" class="comment" [class.comment--internal]="c.is_internal">
+          <mat-card-content>
+            <div class="comment__meta">
+              <strong>{{ c.author.full_name }}</strong>
+              @if (c.is_internal) {
+                <span class="comment__tag"><mat-icon>lock</mat-icon>Internal note</span>
+              }
+              <span class="comment__time">{{ c.created_at | date: 'medium' }}</span>
+            </div>
+            <p class="comment__body">{{ c.body }}</p>
+          </mat-card-content>
+        </mat-card>
+      } @empty {
+        <p class="state">No comments yet.</p>
+      }
+
+      @if (isClosed()) {
+        <p class="state">This ticket is closed, so no further comments can be added.</p>
+      } @else {
+        <form [formGroup]="commentForm" (ngSubmit)="postComment()" class="reply">
+          <mat-form-field>
+            <mat-label>Add a comment</mat-label>
+            <textarea matInput formControlName="body" rows="3"></textarea>
+          </mat-form-field>
+          <div class="reply__actions">
+            @if (auth.isStaff()) {
+              <mat-checkbox formControlName="internal"
+                >Internal note (hidden from requester)</mat-checkbox
+              >
+            }
+            <span class="spacer"></span>
+            <button mat-flat-button type="submit" [disabled]="commentForm.invalid || busy()">
+              Post
+            </button>
+          </div>
+        </form>
+      }
+    </section>
+
+    <aside class="side">
+      <mat-card appearance="outlined">
+        <mat-card-content>
+          <dl class="facts">
+            <dt>Requester</dt>
+            <dd>{{ t.requester.full_name }}</dd>
+            <dt>Category</dt>
+            <dd>{{ categoryLabels[t.category] }}</dd>
+            <dt>Created</dt>
+            <dd>{{ t.created_at | date: 'medium' }}</dd>
+            @if (t.resolved_at) {
+              <dt>Resolved</dt>
+              <dd>{{ t.resolved_at | date: 'medium' }}</dd>
+            }
+            <dt>Assignee</dt>
+            <dd>
+              @if (auth.isStaff() && !isClosed()) {
+                <mat-form-field subscriptSizing="dynamic" class="assignee">
+                  <mat-select
+                    [value]="t.assignee?.id ?? unassigned"
+                    (selectionChange)="assign($event.value)"
+                    [disabled]="busy()"
+                    aria-label="Assignee"
+                  >
+                    <mat-option [value]="unassigned">Unassigned</mat-option>
+                    @for (a of agents(); track a.id) {
+                      <mat-option [value]="a.id">{{ a.full_name }}</mat-option>
+                    }
+                  </mat-select>
+                </mat-form-field>
+              } @else {
+                {{ t.assignee?.full_name ?? 'Unassigned' }}
+              }
+            </dd>
+          </dl>
+        </mat-card-content>
+      </mat-card>
+
+      @if (actions().length) {
+        <div class="actions">
+          @for (next of actions(); track next) {
+            <button
+              mat-stroked-button
+              type="button"
+              [disabled]="busy()"
+              (click)="changeStatus(next)"
+            >
+              {{ transitionLabel(t.status, next) }}
+            </button>
+          }
+        </div>
+      }
+
+      @if (auth.isStaff()) {
+        <h2>History</h2>
+        <ol class="history">
+          @for (h of history(); track h.id) {
+            <li>
+              <strong>{{ h.actor?.full_name ?? 'System' }}</strong> {{ describe(h) }}
+              <span class="history__time">{{ h.created_at | date: 'short' }}</span>
+            </li>
+          }
+        </ol>
+      }
+    </aside>
+  </div>
+}

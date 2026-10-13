@@ -1,0 +1,154 @@
+.back {
+  margin-left: -8px;
+}
+
+.state {
+  color: var(--mat-sys-on-surface-variant);
+  padding: 16px 0;
+}
+
+.error {
+  color: var(--mat-sys-error);
+}
+
+.head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+
+  h1 {
+    margin: 8px 0;
+    overflow-wrap: anywhere;
+  }
+
+  &__id {
+    color: var(--mat-sys-on-surface-variant);
+    font-weight: 400;
+  }
+
+  &__badges {
+    display: flex;
+    gap: 8px;
+  }
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: 24px;
+  align-items: start;
+
+  @media (max-width: 900px) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+h2 {
+  font: var(--mat-sys-title-medium);
+  margin: 24px 0 8px;
+}
+
+.description,
+.comment__body {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  margin: 0;
+}
+
+.comment {
+  margin-bottom: 8px;
+
+  &--internal {
+    background: var(--mat-sys-tertiary-container);
+  }
+
+  &__meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 4px;
+  }
+
+  &__tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    font: var(--mat-sys-label-small);
+
+    mat-icon {
+      font-size: 14px;
+      width: 14px;
+      height: 14px;
+    }
+  }
+
+  &__time {
+    margin-left: auto;
+    font: var(--mat-sys-label-small);
+    color: var(--mat-sys-on-surface-variant);
+  }
+}
+
+.reply {
+  display: flex;
+  flex-direction: column;
+  margin-top: 16px;
+
+  &__actions {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+}
+
+.spacer {
+  flex: 1;
+}
+
+.facts {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 8px 16px;
+  margin: 0;
+
+  dt {
+    color: var(--mat-sys-on-surface-variant);
+  }
+
+  dd {
+    margin: 0;
+    text-align: right;
+  }
+}
+
+.assignee {
+  width: 160px;
+}
+
+.actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.history {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font: var(--mat-sys-body-small);
+
+  li {
+    padding: 8px 0;
+    border-bottom: 1px solid var(--mat-sys-outline-variant);
+  }
+
+  &__time {
+    display: block;
+    color: var(--mat-sys-on-surface-variant);
+  }
+}

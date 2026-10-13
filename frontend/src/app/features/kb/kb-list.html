@@ -1,0 +1,96 @@
+<div class="list-header">
+  <h1>Knowledge base</h1>
+  @if (auth.isStaff()) {
+    <a mat-flat-button routerLink="/kb/new"><mat-icon>add</mat-icon>New article</a>
+  }
+</div>
+
+<form class="filters" [formGroup]="filters" role="search">
+  <mat-form-field class="filters__search" subscriptSizing="dynamic">
+    <mat-label>Search articles</mat-label>
+    <input matInput formControlName="q" placeholder='Try "vpn" or "reset password"' />
+    <mat-icon matSuffix>search</mat-icon>
+  </mat-form-field>
+
+  <mat-form-field subscriptSizing="dynamic">
+    <mat-label>Category</mat-label>
+    <mat-select formControlName="category">
+      <mat-option [value]="null">Any</mat-option>
+      @for (c of categories; track c) {
+        <mat-option [value]="c">{{ categoryLabels[c] }}</mat-option>
+      }
+    </mat-select>
+  </mat-form-field>
+
+  @if (auth.isStaff()) {
+    <mat-form-field subscriptSizing="dynamic">
+      <mat-label>Status</mat-label>
+      <mat-select formControlName="status">
+        <mat-option [value]="null">Any</mat-option>
+        <mat-option value="published">Published</mat-option>
+        <mat-option value="draft">Draft</mat-option>
+      </mat-select>
+    </mat-form-field>
+  }
+
+  @if (hasFilters) {
+    <button mat-button type="button" (click)="clearFilters()">Clear</button>
+  }
+</form>
+
+@if (failed()) {
+  <p class="state state--error" role="alert">
+    Could not load articles.
+    <button mat-button type="button" (click)="reload()">Retry</button>
+  </p>
+}
+
+<ul class="results" [class.results--loading]="loading()">
+  @for (a of rows(); track a.id) {
+    <li class="result">
+      <a class="result__title" [routerLink]="['/kb', a.id]">{{ a.title }}</a>
+      <p class="result__snippet">
+        <!-- Elements, not bare text: template whitespace would otherwise add a space after a match. -->
+        @for (f of fragments(a.snippet); track $index) {
+          @if (f.match) {
+            <mark>{{ f.text }}</mark>
+          } @else {
+            <span>{{ f.text }}</span>
+          }
+        }
+      </p>
+      <p class="result__meta">
+        <span class="chip">{{ categoryLabels[a.category] }}</span>
+        @if (a.status === 'draft') {
+          <span class="chip chip--draft">{{ statusLabels[a.status] }}</span>
+        }
+        <span>
+          {{ a.status === 'draft' ? 'Edited' : 'Published' }}
+          {{ a.published_at ?? a.updated_at | date: 'mediumDate' }} · {{ a.author.full_name }}
+        </span>
+      </p>
+    </li>
+  }
+</ul>
+
+@if (!loading() && !failed() && rows().length === 0) {
+  <p class="state">
+    @if (searched()) {
+      Nothing found for “{{ searched() }}”. Try fewer or different words, or
+      <a routerLink="/tickets/new">open a ticket</a> and we'll help.
+    } @else if (hasFilters) {
+      No articles match these filters.
+    } @else {
+      There are no articles yet.
+    }
+  </p>
+}
+
+<mat-paginator
+  [length]="total()"
+  [pageSize]="pageSize()"
+  [pageIndex]="pageIndex()"
+  [pageSizeOptions]="[10, 25, 50]"
+  (page)="onPage($event)"
+  aria-label="Select page of articles"
+/>

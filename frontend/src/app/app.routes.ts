@@ -1,5 +1,5 @@
 import { Routes } from '@angular/router';
-import { authGuard, guestGuard } from './core/auth/auth.guard';
+import { authGuard, guestGuard, roleGuard } from './core/auth/auth.guard';
 
 export const routes: Routes = [
   {
@@ -31,6 +31,30 @@ export const routes: Routes = [
             path: ':id',
             loadComponent: () =>
               import('./features/tickets/ticket-detail').then((m) => m.TicketDetail),
+          },
+        ],
+      },
+      {
+        path: 'assets',
+        children: [
+          {
+            path: '',
+            loadComponent: () => import('./features/assets/asset-list').then((m) => m.AssetList),
+          },
+          {
+            path: 'new',
+            canActivate: [roleGuard('agent', 'admin')],
+            loadComponent: () => import('./features/assets/asset-form').then((m) => m.AssetForm),
+          },
+          {
+            path: ':id/edit',
+            canActivate: [roleGuard('agent', 'admin')],
+            loadComponent: () => import('./features/assets/asset-form').then((m) => m.AssetForm),
+          },
+          {
+            path: ':id',
+            loadComponent: () =>
+              import('./features/assets/asset-detail').then((m) => m.AssetDetail),
           },
         ],
       },

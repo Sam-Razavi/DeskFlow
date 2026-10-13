@@ -10,6 +10,8 @@ export interface DashboardSummary {
   unassigned: number;
   assigned_to_me: number;
   awaiting_confirmation: number;
+  assets_in_repair: number;
+  warranty_expiring: number;
 }
 
 @Injectable({ providedIn: 'root' })

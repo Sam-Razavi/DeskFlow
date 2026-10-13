@@ -28,7 +28,7 @@
         class="tile"
         [class.tile--critical]="tile.tone === 'critical' && tile.value > 0"
         [class.tile--warning]="tile.tone === 'warning' && tile.value > 0"
-        routerLink="/tickets"
+        [routerLink]="tile.link"
         [queryParams]="tile.queryParams"
       >
         <span class="tile__label">

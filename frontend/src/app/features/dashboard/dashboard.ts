@@ -11,6 +11,7 @@ import { PRIORITIES, PRIORITY_LABELS } from '../../core/tickets/ticket.models';
 interface Tile {
   label: string;
   value: number;
+  link: string;
   queryParams: Record<string, string>;
   /** Status colour is only applied when there is something to act on (value > 0). */
   tone?: 'critical' | 'warning';
@@ -39,6 +40,7 @@ export class Dashboard {
     const awaiting: Tile = {
       label: 'Awaiting confirmation',
       value: s.awaiting_confirmation,
+      link: '/tickets',
       queryParams: { status: 'resolved' },
     };
     if (!this.auth.isStaff()) return [awaiting];
@@ -46,6 +48,7 @@ export class Dashboard {
       {
         label: 'SLA breached',
         value: s.sla_breached,
+        link: '/tickets',
         queryParams: { sla: 'breached' },
         tone: 'critical',
         icon: 'error',
@@ -53,13 +56,38 @@ export class Dashboard {
       {
         label: 'SLA at risk',
         value: s.sla_at_risk,
+        link: '/tickets',
         queryParams: { sla: 'at_risk' },
         tone: 'warning',
         icon: 'warning',
       },
-      { label: 'Unassigned', value: s.unassigned, queryParams: { assignment: 'unassigned' } },
-      { label: 'Assigned to me', value: s.assigned_to_me, queryParams: { assignment: 'mine' } },
+      {
+        label: 'Unassigned',
+        value: s.unassigned,
+        link: '/tickets',
+        queryParams: { assignment: 'unassigned' },
+      },
+      {
+        label: 'Assigned to me',
+        value: s.assigned_to_me,
+        link: '/tickets',
+        queryParams: { assignment: 'mine' },
+      },
       awaiting,
+      {
+        label: 'Assets in repair',
+        value: s.assets_in_repair,
+        link: '/assets',
+        queryParams: { status: 'in_repair' },
+      },
+      {
+        label: 'Warranty expiring',
+        value: s.warranty_expiring,
+        link: '/assets',
+        queryParams: { warranty: 'expiring' },
+        tone: 'warning',
+        icon: 'warning',
+      },
     ];
   });
 

@@ -21,7 +21,9 @@ interface NavItem {
 const NAV_ITEMS: NavItem[] = [
   { label: 'Dashboard', icon: 'dashboard', path: '/' },
   { label: 'Tickets', icon: 'confirmation_number', path: '/tickets' },
-  // Assets, Knowledge Base and Audit Log are added as each module lands.
+  { label: 'Assets', icon: 'devices', path: '/assets', roles: ['agent', 'admin'] },
+  { label: 'My equipment', icon: 'laptop_mac', path: '/assets', roles: ['requester'] },
+  // Knowledge Base and Audit Log are added as each module lands.
 ];
 
 @Component({

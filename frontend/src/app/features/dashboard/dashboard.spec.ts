@@ -15,6 +15,8 @@ const summary: DashboardSummary = {
   unassigned: 3,
   assigned_to_me: 1,
   awaiting_confirmation: 5,
+  assets_in_repair: 2,
+  warranty_expiring: 0,
 };
 
 async function setup(role: Role, data: DashboardSummary = summary) {

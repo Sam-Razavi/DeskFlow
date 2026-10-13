@@ -4,6 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.routes import (
     articles,
     assets,
+    assistant,
     audit,
     auth,
     dashboard,
@@ -31,6 +32,7 @@ api.include_router(health.router)
 api.include_router(auth.router)
 api.include_router(users.router)
 api.include_router(tickets.router)
+api.include_router(assistant.router)
 api.include_router(ticket_assets.router)
 api.include_router(assets.router)
 api.include_router(articles.router)

@@ -1,7 +1,7 @@
 from functools import lru_cache
-from typing import Self
+from typing import Literal, Self
 
-from pydantic import field_validator, model_validator
+from pydantic import SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # HS256 keys shorter than the hash size are weak, and PyJWT warns about them.
@@ -29,6 +29,15 @@ class Settings(BaseSettings):
     login_max_failures: int = 5
     login_max_failures_per_ip: int = 30
     login_window_seconds: int = 900
+
+    # Troubleshooting assistant. Without a key the feature reports itself as unavailable.
+    anthropic_api_key: SecretStr | None = None
+    assistant_model: str = "claude-opus-5-5"
+    assistant_effort: Literal["low", "medium", "high"] = "medium"
+    assistant_timeout_seconds: float = 45.0
+    # Each staff member may ask this many times per window; every request costs real money.
+    assistant_max_requests: int = 20
+    assistant_window_seconds: int = 3600
 
     cors_origins: list[str] = ["http://localhost:4200"]
 

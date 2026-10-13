@@ -1,9 +1,12 @@
+import contextlib
 import os
 
 # Must be set before the app (and its engine) is imported.
 os.environ.setdefault(
     "DATABASE_URL", "postgresql+asyncpg://deskflow:deskflow@localhost:5432/deskflow_test"
 )
+# A separate Redis database, so tests can empty it without touching anything else.
+os.environ.setdefault("REDIS_URL", "redis://localhost:6379/15")
 
 from collections.abc import AsyncIterator
 
@@ -13,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 
 from app.core.config import get_settings
 from app.core.db import get_session
+from app.core.ratelimit import get_limiter
 from app.core.security import create_token, hash_password
 from app.main import app
 from app.models import Base, Role, User
@@ -43,6 +47,16 @@ async def session(engine) -> AsyncIterator[AsyncSession]:
         async with maker() as s:
             yield s
         await trans.rollback()
+
+
+@pytest.fixture(autouse=True)
+async def clean_rate_limits():
+    """Every test starts with no failed-login history."""
+    limiter = get_limiter()
+    if limiter._redis.connection_pool.connection_kwargs.get("db") == 15:
+        # Redis not running is fine: the limiter fails open, and the tests still run.
+        with contextlib.suppress(Exception):
+            await limiter._redis.flushdb()
 
 
 @pytest.fixture

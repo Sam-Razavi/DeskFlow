@@ -30,8 +30,28 @@ services:
         condition: service_healthy
       redis:
         condition: service_started
+    healthcheck:
+      # The slim image has no curl; the API is up once /api/health answers.
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
     ports:
       - "8000:8000"
+
+  worker:
+    build: ./backend
+    command: ["arq", "app.worker.WorkerSettings"]
+    environment:
+      DATABASE_URL: postgresql+asyncpg://deskflow:deskflow@db:5432/deskflow
+      REDIS_URL: redis://redis:6379/0
+      JWT_SECRET: local-docker-secret-not-for-production-use
+    depends_on:
+      redis:
+        condition: service_started
+      api:
+        # The api container applies migrations on start, so wait for it to be healthy.
+        condition: service_healthy
 
   web:
     build: ./frontend

@@ -41,6 +41,7 @@ import { TicketService } from '../../core/tickets/ticket.service';
 import { UserService } from '../../core/users/user.service';
 import { SlaBadge } from './sla-badge';
 import { ArticleSuggestions } from '../kb/article-suggestions';
+import { TicketAssistant } from './ticket-assistant';
 import { TicketAssets } from './ticket-assets';
 import { Badge } from './status-badge';
 
@@ -61,6 +62,7 @@ const UNASSIGNED = 0;
     MatSelectModule,
     Badge,
     SlaBadge,
+    TicketAssistant,
     TicketAssets,
     ArticleSuggestions,
   ],

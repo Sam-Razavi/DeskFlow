@@ -15,6 +15,10 @@ Built with **Angular 22**, **FastAPI**, **PostgreSQL** and **Redis**, containeri
   <img src="docs/screenshots/assets.png" width="49%" alt="Hardware inventory with status, assignee and warranty warnings" />
   <img src="docs/screenshots/asset-detail.png" width="49%" alt="Asset detail with assignment, linked tickets and history" />
 </p>
+<p>
+  <img src="docs/screenshots/kb.png" width="49%" alt="Knowledge base search with highlighted matches" />
+  <img src="docs/screenshots/kb-editor.png" width="49%" alt="Markdown article editor with live preview" />
+</p>
 
 ## Features
 
@@ -23,9 +27,9 @@ Built with **Angular 22**, **FastAPI**, **PostgreSQL** and **Redis**, containeri
 | Authentication: JWT access and refresh tokens, role-based access (Requester / Agent / Admin) | ✅ |
 | Tickets: status workflow, priorities P1–P4, categories, comments with staff-only internal notes, assignment, search, filters and pagination | ✅ |
 | SLA timers: response and resolution targets per priority, clock paused while a ticket is Pending, a background worker that flags tickets at risk or breached | ✅ |
-| Audit log: append-only record of every ticket and asset change (who, what, when, before/after), shown as a history on each ticket and asset for staff, and queryable by admins via the API. A dedicated admin screen is still to come | 🟡 |
+| Audit log: append-only record of every ticket, asset and article change (who, what, when, before/after), shown as a history on each ticket, asset and article for staff, and queryable by admins via the API. A dedicated admin screen is still to come | 🟡 |
 | Hardware inventory: generated asset tags, lifecycle status (in stock / assigned / in repair / retired), assignment to users, warranty tracking, ticket links, per-asset history. Requesters get a read-only "My equipment" view | ✅ |
-| Knowledge base: Markdown articles, draft/published, Postgres full-text search | 🚧 |
+| Knowledge base: Markdown articles with a draft/published workflow, Postgres full-text search (ranking, stemming, phrases, highlighted snippets), a live-preview editor, and article suggestions while a ticket is being written | ✅ |
 | Dashboard: open tickets, SLA breached / at risk, unassigned, my queue, assets in repair, warranties expiring, and a priority chart, with each figure linking to the matching ticket or asset list | ✅ |
 
 **Planned (phase 2):** AI troubleshooting assistant (retrieval over *published* KB articles only, via pgvector), email notifications, CSV asset import/export, attachments.
@@ -51,6 +55,12 @@ Built with **Angular 22**, **FastAPI**, **PostgreSQL** and **Redis**, containeri
   - Sending an assigned asset for repair or retiring it takes it back from the user. *Retired* is final.
   - Tag and serial number are unique. Warranties show *expiring soon* within 30 days, and retired equipment drops out of warranty reminders.
   - Staff manage everything. Requesters see only equipment assigned to them, and can link their own equipment to their own tickets. Tickets and assets link both ways and each link is audited on both records.
+- **Knowledge base:** staff write articles in Markdown, as drafts first, and publish them for everyone. Requesters only ever see published articles; to them a draft doesn't exist.
+  - **Search** is Postgres full-text search over a generated `tsvector` column with a GIN index. Titles outrank body text, word forms match (`printers` finds `printer`), and it understands `"exact phrases"` and `-exclusions`. Odd input never errors, because queries are built with `websearch_to_tsquery`.
+  - **Snippets** show the matching part of the article as plain text with the matched words highlighted. The API marks matches with private delimiter characters rather than HTML, so the client never has to trust markup coming from the database.
+  - **Suggestions** (`/api/articles/suggest`) power the "These articles might help" box on the new-ticket form and the staff view of a ticket. Articles containing every word of the title come first. Only when there are none does it fall back to articles containing any word, dropping ones that are much weaker than the best.
+  - **Safe rendering:** article Markdown is rendered with `marked` and bound through Angular's HTML sanitiser, which removes scripts, event handlers and `javascript:` links. Tests cover hostile content.
+  - Staff can delete drafts. Deleting a published article is admin-only. Every change is audited.
 - **Audit trail:** every write records who did it and the before/after values in the same database transaction as the change, so a rolled-back request leaves no trace.
 
 ## Architecture
@@ -73,7 +83,7 @@ Built with **Angular 22**, **FastAPI**, **PostgreSQL** and **Redis**, containeri
 
 | Area | Choice |
 |---|---|
-| Frontend | Angular 22 (standalone components, signals, built-in control flow, functional guards and interceptors), Angular Material 3, Vitest |
+| Frontend | Angular 22 (standalone components, signals, built-in control flow, functional guards and interceptors), Angular Material 3, marked (Markdown), Vitest |
 | Backend | FastAPI, SQLAlchemy 2.0 (async), Pydantic v2, Alembic, PyJWT, Argon2 password hashing |
 | Data | PostgreSQL 16, Redis 7 (background jobs, caching, rate limiting) |
 | Tooling | uv, Ruff, mypy (strict), pytest, Prettier, GitHub Actions, Docker Compose |
@@ -114,7 +124,7 @@ npm start          # http://localhost:4200, proxies /api to :8000
 
 ### Demo accounts
 
-All demo accounts use the password `deskflow123`.
+All demo accounts use the password `deskflow123`. The seed also adds sample knowledge base articles (and one draft), so a fresh install is not empty.
 
 | Role | Email |
 |---|---|
@@ -158,14 +168,14 @@ backend/
   app/
     api/         routes and dependencies (auth, role checks)
     core/        settings, database, security
-    models/      SQLAlchemy models (users, tickets, comments, assets, audit logs)
+    models/      SQLAlchemy models (users, tickets, comments, assets, articles, audit logs)
     schemas/     Pydantic request and response models
-    services/    business rules (ticket and asset workflows, SLA, audit recording)
+    services/    business rules (ticket and asset workflows, SLA, search, audit recording)
   alembic/       migrations
   tests/
 frontend/
   src/app/
     core/        auth, ticket and user API services, interceptor, guards
     layout/      app shell (sidenav and toolbar)
-    features/    one folder per feature (login, dashboard, tickets, assets)
+    features/    one folder per feature (login, dashboard, tickets, assets, kb)
 ```

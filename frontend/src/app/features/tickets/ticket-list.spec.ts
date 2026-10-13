@@ -2,6 +2,7 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
+import { RouterTestingHarness } from '@angular/router/testing';
 import { TicketList } from './ticket-list';
 import { authStub, makeTicket, respond } from './testing';
 
@@ -17,6 +18,9 @@ function setup(role: 'requester' | 'agent' = 'agent') {
     el: fixture.nativeElement as HTMLElement,
   };
 }
+
+const labels = (el: HTMLElement) =>
+  [...el.querySelectorAll('mat-label')].map((l) => l.textContent?.trim());
 
 describe('TicketList', () => {
   it('renders tickets returned by the API', async () => {
@@ -59,5 +63,68 @@ describe('TicketList', () => {
     await respond(http, '/api/tickets', { items: [], total: 0 });
     await fixture.whenStable();
     expect(el.querySelector('[role=alert]')).toBeNull();
+  });
+
+  it('shows the SLA column and filters to staff only', async () => {
+    const staff = setup('agent');
+    await respond(staff.http, '/api/tickets', {
+      items: [makeTicket({ sla_state: 'breached' })],
+      total: 1,
+    });
+    await staff.fixture.whenStable();
+    expect(staff.el.textContent).toContain('Breached');
+    expect(labels(staff.el)).toEqual(expect.arrayContaining(['SLA', 'Assigned to']));
+    TestBed.resetTestingModule();
+
+    const requester = setup('requester');
+    await respond(requester.http, '/api/tickets', {
+      items: [makeTicket({ sla_state: 'breached' })],
+      total: 1,
+    });
+    await requester.fixture.whenStable();
+    expect(requester.el.querySelector('app-sla-badge')).toBeNull();
+    expect(labels(requester.el)).not.toContain('SLA');
+    expect(labels(requester.el)).not.toContain('Assigned to');
+    expect(labels(requester.el)).toContain('Status');
+  });
+});
+
+describe('TicketList deep links', () => {
+  async function open(query: string) {
+    TestBed.configureTestingModule({
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        provideRouter([{ path: 'tickets', component: TicketList }]),
+        authStub('agent'),
+      ],
+    });
+    const http = TestBed.inject(HttpTestingController);
+    const navigation = RouterTestingHarness.create().then((h) =>
+      h.navigateByUrl('/tickets' + query, TicketList),
+    );
+    const req = await respond(http, '/api/tickets', { items: [], total: 0 });
+    await navigation;
+    return req.request.params;
+  }
+
+  it('applies filters from the query string so dashboard tiles land on the right list', async () => {
+    const params = await open('?sla=breached&assignment=unassigned&status=resolved');
+    expect(params.get('sla')).toBe('breached');
+    expect(params.get('unassigned')).toBe('true');
+    expect(params.get('status')).toBe('resolved');
+  });
+
+  it('filters by "mine" using the signed-in user id', async () => {
+    const params = await open('?assignment=mine');
+    expect(params.get('assignee_id')).toBe('2');
+    expect(params.has('unassigned')).toBe(false);
+  });
+
+  it('ignores values that are not real options', async () => {
+    const params = await open('?sla=bogus&status=hacked&assignment=everyone');
+    expect(params.has('sla')).toBe(false);
+    expect(params.has('status')).toBe(false);
+    expect(params.has('unassigned')).toBe(false);
   });
 });

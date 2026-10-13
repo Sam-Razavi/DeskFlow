@@ -1,5 +1,12 @@
 import { DatePipe } from '@angular/common';
-import { ChangeDetectionStrategy, Component, DestroyRef, inject, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  DestroyRef,
+  inject,
+  signal,
+} from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormControl, FormGroup, ReactiveFormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
@@ -9,22 +16,25 @@ import { MatInputModule } from '@angular/material/input';
 import { MatPaginatorModule, PageEvent } from '@angular/material/paginator';
 import { MatSelectModule } from '@angular/material/select';
 import { MatTableModule } from '@angular/material/table';
-import { RouterLink } from '@angular/router';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 import { debounceTime, firstValueFrom } from 'rxjs';
 import { AuthService } from '../../core/auth/auth.service';
 import {
   CATEGORIES,
+  Assignment,
   Category,
   CATEGORY_LABELS,
   Priority,
   PRIORITIES,
   PRIORITY_LABELS,
+  SlaFilter,
   STATUS_LABELS,
   STATUSES,
   Ticket,
   TicketStatus,
 } from '../../core/tickets/ticket.models';
 import { TicketService } from '../../core/tickets/ticket.service';
+import { SlaBadge } from './sla-badge';
 import { Badge } from './status-badge';
 
 @Component({
@@ -40,6 +50,7 @@ import { Badge } from './status-badge';
     MatSelectModule,
     MatTableModule,
     Badge,
+    SlaBadge,
     DatePipe,
   ],
   templateUrl: './ticket-list.html',
@@ -56,7 +67,7 @@ export class TicketList {
   protected readonly statusLabels = STATUS_LABELS;
   protected readonly priorityLabels = PRIORITY_LABELS;
   protected readonly categoryLabels = CATEGORY_LABELS;
-  protected readonly columns = [
+  private readonly baseColumns = [
     'id',
     'title',
     'status',
@@ -65,6 +76,12 @@ export class TicketList {
     'assignee',
     'created',
   ];
+  // SLA is an internal measure, so only staff get the column and its filters.
+  protected readonly columns = computed(() => {
+    const cols = [...this.baseColumns];
+    if (this.auth.isStaff()) cols.splice(3, 0, 'sla');
+    return cols;
+  });
 
   protected readonly rows = signal<Ticket[]>([]);
   protected readonly total = signal(0);
@@ -73,11 +90,20 @@ export class TicketList {
   protected readonly pageSize = signal(25);
   protected readonly pageIndex = signal(0);
 
+  // The dashboard deep-links here with ?sla=breached, ?assignment=mine, ?status=resolved, etc.
+  private readonly params = inject(ActivatedRoute).snapshot.queryParamMap;
+
   protected readonly filters = new FormGroup({
     q: new FormControl('', { nonNullable: true }),
-    status: new FormControl<TicketStatus | null>(null),
+    status: new FormControl<TicketStatus | null>(this.fromParam<TicketStatus>(STATUSES, 'status')),
     priority: new FormControl<Priority | null>(null),
     category: new FormControl<Category | null>(null),
+    sla: new FormControl<SlaFilter | null>(
+      this.fromParam<SlaFilter>(['breached', 'at_risk'], 'sla'),
+    ),
+    assignment: new FormControl<Assignment | null>(
+      this.fromParam<Assignment>(['unassigned', 'mine'], 'assignment'),
+    ),
   });
 
   constructor() {
@@ -91,6 +117,12 @@ export class TicketList {
     void this.reload();
   }
 
+  /** Only accept a query-param value that is a real option, so a hand-edited URL can't inject junk. */
+  private fromParam<T extends string>(allowed: readonly T[], name: string): T | null {
+    const value = this.params.get(name);
+    return allowed.find((a) => a === value) ?? null;
+  }
+
   protected onPage(event: PageEvent): void {
     this.pageIndex.set(event.pageIndex);
     this.pageSize.set(event.pageSize);
@@ -98,18 +130,24 @@ export class TicketList {
   }
 
   protected clearFilters(): void {
-    this.filters.reset({ q: '', status: null, priority: null, category: null });
+    this.filters.reset({
+      q: '',
+      status: null,
+      priority: null,
+      category: null,
+      sla: null,
+      assignment: null,
+    });
   }
 
   protected get hasFilters(): boolean {
-    const { q, status, priority, category } = this.filters.getRawValue();
-    return !!(q || status || priority || category);
+    return Object.values(this.filters.getRawValue()).some(Boolean);
   }
 
   protected async reload(): Promise<void> {
     this.loading.set(true);
     this.failed.set(false);
-    const { q, status, priority, category } = this.filters.getRawValue();
+    const { q, status, priority, category, sla, assignment } = this.filters.getRawValue();
     try {
       const page = await firstValueFrom(
         this.tickets.list({
@@ -117,6 +155,9 @@ export class TicketList {
           status: status ?? undefined,
           priority: priority ?? undefined,
           category: category ?? undefined,
+          sla: sla ?? undefined,
+          unassigned: assignment === 'unassigned',
+          assigneeId: assignment === 'mine' ? this.auth.user()?.id : undefined,
           limit: this.pageSize(),
           offset: this.pageIndex() * this.pageSize(),
         }),

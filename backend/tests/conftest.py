@@ -77,3 +77,18 @@ def auth_headers():
         return {"Authorization": f"Bearer {create_token(str(user.id), 'access')}"}
 
     return _headers
+
+
+@pytest.fixture
+async def people(make_user, auth_headers):
+    """A requester, a second requester, an agent and an admin, each with auth headers."""
+    out = {}
+    for key, role, email in [
+        ("req", Role.REQUESTER, "req@example.com"),
+        ("other", Role.REQUESTER, "other@example.com"),
+        ("agent", Role.AGENT, "agent@example.com"),
+        ("admin", Role.ADMIN, "admin@example.com"),
+    ]:
+        user = await make_user(role, email)
+        out[key] = (user, await auth_headers(user))
+    return out

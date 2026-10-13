@@ -1,4 +1,4 @@
-from tests.test_tickets import create, people, set_status  # noqa: F401
+from tests.test_tickets import create, set_status
 
 
 async def history(client, headers, ticket_id):
@@ -7,7 +7,7 @@ async def history(client, headers, ticket_id):
     return res.json()
 
 
-async def test_every_ticket_change_is_audited_in_order(client, people):  # noqa: F811
+async def test_every_ticket_change_is_audited_in_order(client, people):
     req, req_headers = people["req"]
     agent, agent_headers = people["agent"]
     tid = (await create(client, req_headers))["id"]
@@ -31,7 +31,7 @@ async def test_every_ticket_change_is_audited_in_order(client, people):  # noqa:
     assert entries[1]["actor"]["id"] == agent.id
 
 
-async def test_audit_records_before_and_after_values(client, people):  # noqa: F811
+async def test_audit_records_before_and_after_values(client, people):
     _, req_headers = people["req"]
     agent, agent_headers = people["agent"]
     tid = (await create(client, req_headers, priority="p3"))["id"]
@@ -50,7 +50,7 @@ async def test_audit_records_before_and_after_values(client, people):  # noqa: F
     }
 
 
-async def test_no_audit_row_for_a_noop_update(client, people):  # noqa: F811
+async def test_no_audit_row_for_a_noop_update(client, people):
     _, req_headers = people["req"]
     _, agent_headers = people["agent"]
     ticket = await create(client, req_headers)
@@ -61,7 +61,7 @@ async def test_no_audit_row_for_a_noop_update(client, people):  # noqa: F811
     assert [e["action"] for e in entries] == ["created"]
 
 
-async def test_failed_request_leaves_no_audit_row(client, people):  # noqa: F811
+async def test_failed_request_leaves_no_audit_row(client, people):
     _, req_headers = people["req"]
     _, agent_headers = people["agent"]
     tid = (await create(client, req_headers))["id"]
@@ -71,14 +71,14 @@ async def test_failed_request_leaves_no_audit_row(client, people):  # noqa: F811
     assert [e["action"] for e in entries] == ["created", "status_changed"]
 
 
-async def test_requester_cannot_read_history(client, people):  # noqa: F811
+async def test_requester_cannot_read_history(client, people):
     _, req_headers = people["req"]
     tid = (await create(client, req_headers))["id"]
     res = await client.get(f"/api/tickets/{tid}/history", headers=req_headers)
     assert res.status_code == 403
 
 
-async def test_audit_log_endpoint_is_admin_only_and_filterable(client, people):  # noqa: F811
+async def test_audit_log_endpoint_is_admin_only_and_filterable(client, people):
     _, req_headers = people["req"]
     _, agent_headers = people["agent"]
     _, admin_headers = people["admin"]

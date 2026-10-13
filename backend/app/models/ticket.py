@@ -1,7 +1,7 @@
 import enum
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, Index, String, Text, func
+from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, Index, Integer, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, TimestampMixin
@@ -50,6 +50,18 @@ class Ticket(TimestampMixin, Base):
     requester_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
     assignee_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), index=True)
     resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    # SLA tracking. The due dates are stored (not derived) so they can be indexed and queried;
+    # app.services.sla owns every rule that changes them.
+    first_response_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    response_due_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    resolution_due_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    sla_paused_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    sla_paused_seconds: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    # Set once by the background worker so each threshold is only audited a single time.
+    resolution_at_risk_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    response_breached_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    resolution_breached_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     requester: Mapped[User] = relationship(foreign_keys=[requester_id], lazy="selectin")
     assignee: Mapped[User | None] = relationship(foreign_keys=[assignee_id], lazy="selectin")

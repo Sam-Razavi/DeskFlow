@@ -1,5 +1,4 @@
-from datetime import UTC, datetime
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func, or_, select
@@ -20,7 +19,7 @@ from app.schemas.ticket import (
     TicketRead,
     TicketUpdate,
 )
-from app.services import audit
+from app.services import audit, sla
 from app.services.workflow import can_transition
 
 router = APIRouter(prefix="/tickets", tags=["tickets"])
@@ -54,18 +53,47 @@ async def _require_staff_user(session: AsyncSession, user_id: int, what: str) ->
     return user
 
 
+async def _ticket_ids_in_sla_state(
+    session: AsyncSession, wanted: Literal["breached", "at_risk"]
+) -> list[int]:
+    """Ids of open, running tickets in the given state, judged by the same rules as the API.
+
+    The state depends on the current time, so it is evaluated in Python over open tickets rather
+    than re-implemented in SQL where the two could drift apart.
+    """
+    now = sla.utcnow()
+    rows = await session.execute(
+        select(
+            Ticket.id,
+            Ticket.status,
+            Ticket.created_at,
+            Ticket.resolved_at,
+            Ticket.first_response_at,
+            Ticket.response_due_at,
+            Ticket.resolution_due_at,
+            Ticket.sla_paused_at,
+        ).where(Ticket.status.not_in(sla.DONE_STATUSES))
+    )
+    return [r.id for r in rows if sla.overall_state(r, now).value == wanted]
+
+
 @router.post("", status_code=status.HTTP_201_CREATED)
 async def create_ticket(session: SessionDep, user: CurrentUser, body: TicketCreate) -> TicketRead:
     requester_id = user.id
     if _is_staff(user) and body.requester_id is not None:
         requester_id = (await _require_staff_user(session, body.requester_id, "requester")).id
 
+    now = sla.utcnow()
+    response_due, resolution_due = sla.due_dates(now, body.priority)
     ticket = Ticket(
         title=body.title,
         description=body.description,
         priority=body.priority,
         category=body.category,
         requester_id=requester_id,
+        created_at=now,
+        response_due_at=response_due,
+        resolution_due_at=resolution_due,
     )
     session.add(ticket)
     await session.flush()
@@ -91,6 +119,7 @@ async def list_tickets(
     category: Category | None = None,
     assignee_id: int | None = None,
     unassigned: bool = False,
+    sla_filter: Annotated[Literal["breached", "at_risk"] | None, Query(alias="sla")] = None,
     q: Annotated[str | None, Query(max_length=100)] = None,
     limit: Annotated[int, Query(ge=1, le=100)] = 25,
     offset: Annotated[int, Query(ge=0)] = 0,
@@ -108,6 +137,8 @@ async def list_tickets(
         stmt = stmt.where(Ticket.assignee_id.is_(None))
     elif assignee_id is not None:
         stmt = stmt.where(Ticket.assignee_id == assignee_id)
+    if sla_filter:
+        stmt = stmt.where(Ticket.id.in_(await _ticket_ids_in_sla_state(session, sla_filter)))
     if q:
         pattern = f"%{q}%"
         stmt = stmt.where(or_(Ticket.title.ilike(pattern), Ticket.description.ilike(pattern)))
@@ -143,6 +174,8 @@ async def update_ticket(
     before = _snapshot(ticket)
     for field, value in updates.items():
         setattr(ticket, field, value)
+    if ticket.priority != before["priority"]:
+        sla.recompute(ticket)
     if changes := audit.diff(before, _snapshot(ticket)):
         audit.record(session, user, "ticket", ticket.id, "updated", changes)
     await session.commit()
@@ -151,9 +184,13 @@ async def update_ticket(
 
 
 def _apply_status(ticket: Ticket, target: TicketStatus) -> None:
+    now = sla.utcnow()
+    sla.on_status_change(ticket, ticket.status, target, now)
     ticket.status = target
-    if target == TicketStatus.RESOLVED:
-        ticket.resolved_at = datetime.now(UTC)
+    if target == TicketStatus.RESOLVED or (
+        target == TicketStatus.CLOSED and ticket.resolved_at is None
+    ):
+        ticket.resolved_at = now  # closing straight from New also counts as the resolution
     elif target == TicketStatus.IN_PROGRESS:
         ticket.resolved_at = None  # reopened
 
@@ -229,14 +266,17 @@ async def add_comment(
     )
     session.add(comment)
     await session.flush()
-    audit.record(
-        session,
-        user,
-        "ticket",
-        ticket.id,
-        "commented",
-        {"comment_id": comment.id, "is_internal": comment.is_internal},
-    )
+    changes: dict[str, object] = {"comment_id": comment.id, "is_internal": comment.is_internal}
+    # The first public reply from staff (other than the requester) stops the response clock.
+    if (
+        _is_staff(user)
+        and not body.is_internal
+        and user.id != ticket.requester_id
+        and ticket.first_response_at is None
+    ):
+        ticket.first_response_at = sla.utcnow()
+        changes["first_response"] = True
+    audit.record(session, user, "ticket", ticket.id, "commented", changes)
     await session.commit()
     await session.refresh(comment)
     return CommentRead.model_validate(comment)

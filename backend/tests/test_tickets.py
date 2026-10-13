@@ -1,28 +1,9 @@
-import pytest
-
-from app.models import Role
-
 NEW_TICKET = {
     "title": "Laptop will not boot",
     "description": "Black screen after the Windows logo.",
     "priority": "p2",
     "category": "hardware",
 }
-
-
-@pytest.fixture
-async def people(make_user, auth_headers):
-    """A requester, a second requester, an agent and an admin, each with auth headers."""
-    out = {}
-    for key, role, email in [
-        ("req", Role.REQUESTER, "req@example.com"),
-        ("other", Role.REQUESTER, "other@example.com"),
-        ("agent", Role.AGENT, "agent@example.com"),
-        ("admin", Role.ADMIN, "admin@example.com"),
-    ]:
-        user = await make_user(role, email)
-        out[key] = (user, await auth_headers(user))
-    return out
 
 
 async def create(client, headers, **overrides):

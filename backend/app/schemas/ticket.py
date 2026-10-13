@@ -1,8 +1,10 @@
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, computed_field
 
 from app.models.ticket import Category, Priority, TicketStatus
+from app.services import sla
+from app.services.sla import SlaState
 
 
 class UserBrief(BaseModel):
@@ -50,6 +52,26 @@ class TicketRead(BaseModel):
     created_at: datetime
     updated_at: datetime
     resolved_at: datetime | None
+    first_response_at: datetime | None
+    response_due_at: datetime
+    resolution_due_at: datetime
+    sla_paused_at: datetime | None
+
+    # The states are derived from the fields above at request time, so they are never stale.
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def response_sla(self) -> SlaState:
+        return sla.response_state(self, sla.utcnow())
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def resolution_sla(self) -> SlaState:
+        return sla.resolution_state(self, sla.utcnow())
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def sla_state(self) -> SlaState:
+        return sla.overall_state(self, sla.utcnow())
 
 
 class TicketPage(BaseModel):

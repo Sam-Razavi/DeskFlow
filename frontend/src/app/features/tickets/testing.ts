@@ -3,6 +3,7 @@ import { HttpTestingController } from '@angular/common/http/testing';
 import { Role, User } from '../../core/auth/auth.models';
 import { AuthService } from '../../core/auth/auth.service';
 import { Asset } from '../../core/assets/asset.models';
+import { Article, ArticleSummary } from '../../core/kb/article.models';
 import { Ticket } from '../../core/tickets/ticket.models';
 
 export const makeUser = (role: Role): User => ({
@@ -81,3 +82,31 @@ export const makeAsset = (overrides: Partial<Asset> = {}): Asset => ({
   warranty_state: 'active',
   ...overrides,
 });
+
+export const makeSummary = (overrides: Partial<ArticleSummary> = {}): ArticleSummary => ({
+  id: 3,
+  title: 'How to reset your password',
+  category: 'access',
+  status: 'published',
+  author: { id: 2, full_name: 'Alan Agent' },
+  published_at: '2026-10-06T09:00:00Z',
+  updated_at: '2026-10-06T09:00:00Z',
+  snippet: 'Open the portal and choose Forgot password.',
+  ...overrides,
+});
+
+export const makeArticle = (overrides: Partial<Article> = {}): Article => ({
+  id: 3,
+  title: 'How to reset your password',
+  body: '## Steps\n\n1. Open the portal\n2. Choose **Forgot password**',
+  category: 'access',
+  status: 'published',
+  author: { id: 2, full_name: 'Alan Agent' },
+  published_at: '2026-10-06T09:00:00Z',
+  created_at: '2026-10-05T09:00:00Z',
+  updated_at: '2026-10-06T09:00:00Z',
+  ...overrides,
+});
+
+/** Waits long enough for a debounced input to fire its request. */
+export const afterDebounce = (ms = 450) => new Promise((resolve) => setTimeout(resolve, ms));

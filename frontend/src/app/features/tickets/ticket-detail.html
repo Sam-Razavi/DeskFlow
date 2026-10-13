@@ -126,6 +126,10 @@
         </mat-card>
       }
 
+      @if (auth.isStaff()) {
+        <app-article-suggestions [query]="t.title" heading="Suggested articles" />
+      }
+
       <app-ticket-assets [ticketId]="t.id" [requesterId]="t.requester.id" [closed]="isClosed()" />
 
       @if (actions().length) {

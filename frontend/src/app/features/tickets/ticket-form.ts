@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
+import { toSignal } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
@@ -15,6 +16,7 @@ import {
   PRIORITY_LABELS,
 } from '../../core/tickets/ticket.models';
 import { TicketService } from '../../core/tickets/ticket.service';
+import { ArticleSuggestions } from '../kb/article-suggestions';
 
 @Component({
   selector: 'app-ticket-form',
@@ -26,6 +28,7 @@ import { TicketService } from '../../core/tickets/ticket.service';
     MatFormFieldModule,
     MatInputModule,
     MatSelectModule,
+    ArticleSuggestions,
   ],
   templateUrl: './ticket-form.html',
   styleUrl: './ticket-form.scss',
@@ -50,6 +53,9 @@ export class TicketForm {
     category: ['other' as (typeof CATEGORIES)[number], Validators.required],
     priority: ['p3' as (typeof PRIORITIES)[number], Validators.required],
   });
+
+  /** The title as it is typed, used to suggest articles that might make the ticket unnecessary. */
+  protected readonly title = toSignal(this.form.controls.title.valueChanges, { initialValue: '' });
 
   protected async submit(): Promise<void> {
     if (this.form.invalid || this.saving()) return;

@@ -1,7 +1,7 @@
 from fastapi import APIRouter, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.routes import auth, health, users
+from app.api.routes import audit, auth, health, tickets, users
 from app.core.config import get_settings
 
 settings = get_settings()
@@ -20,4 +20,6 @@ api = APIRouter(prefix="/api")
 api.include_router(health.router)
 api.include_router(auth.router)
 api.include_router(users.router)
+api.include_router(tickets.router)
+api.include_router(audit.router)
 app.include_router(api)

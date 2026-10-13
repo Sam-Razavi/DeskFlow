@@ -82,6 +82,7 @@ async def ask_assistant(
             "cited": [a.id for a in result[1]] if result else [],
         },
     )
+    await session.commit()  # the session does not commit by itself
     if result is None:
         return _no_answer("not_covered")
     steps, cited = result

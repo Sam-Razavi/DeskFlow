@@ -206,3 +206,20 @@ async def test_rate_limit_applies_per_person(client, people, use_client, monkeyp
     assert len(fake.calls) == 2
     # Another agent has their own allowance.
     assert (await ask(client, people["admin"][1], t["id"])).status_code == 200
+
+
+async def test_the_audit_entry_is_committed(client, people, use_client, session, monkeypatch):
+    # Tests share one rolled-back session, so a missing commit would otherwise go unnoticed.
+    commits = []
+    real_commit = session.commit
+
+    async def counting_commit():
+        commits.append(1)
+        await real_commit()
+
+    monkeypatch.setattr(session, "commit", counting_commit)
+    headers, vpn, t = await setup(client, people)
+    commits.clear()
+    use_client(FakeClient(message(article_ids=[vpn["id"]])))
+    await ask(client, headers, t["id"])
+    assert commits

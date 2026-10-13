@@ -18,6 +18,10 @@ _HEADLINE_OPTIONS = (
 )
 EXCERPT_LENGTH = 180
 
+# In the lenient tier a match must score at least this share of the best match to be suggested, so
+# an article that only shares a common word ("keeps") is not offered next to a real answer.
+LENIENT_RELATIVE_CUTOFF = 0.35
+
 # Postgres wants the text-search configuration as a regconfig, not a bound string parameter. This is
 # a fixed constant, never user input, so inlining it is safe.
 _CONFIG: ColumnElement[Any] = literal_column("'english'::regconfig")
@@ -43,6 +47,11 @@ def search_query(text: str) -> ColumnElement[object]:
     return func.websearch_to_tsquery(_CONFIG, text)
 
 
+def all_words_query(text: str) -> ColumnElement[object]:
+    """Every word must match, with no web-search syntax. The first, precise tier of suggestions."""
+    return func.plainto_tsquery(_CONFIG, text)
+
+
 def suggestion_query(text: str) -> ColumnElement[object]:
     """Lenient search for suggestions: an article matching *any* of the words qualifies.
 
@@ -53,9 +62,29 @@ def suggestion_query(text: str) -> ColumnElement[object]:
     return cast(func.replace(anded, "&", "|"), TSQUERY())  # type: ignore[arg-type]
 
 
+def plain_body() -> ColumnElement[str]:
+    """The article text with Markdown syntax removed, so snippets read as sentences.
+
+    Code blocks are dropped, links keep their label but not their address, and the characters that
+    only exist to format (# > * _ ` ~ | and runs of dashes) are removed. This is for display only:
+    matching still runs against the search_vector built from the original text.
+    """
+    text = func.regexp_replace(Article.body, "```[^`]*```", " ", "g")
+    text = func.regexp_replace(text, r"!?\[([^\]]*)\]\([^)]*\)", r"\1", "g")
+    # Emphasis markers vanish without trace, so "**word**." stays "word.". Structural ones become
+    # spaces, and runs of dashes (table separator rows, rules) are dropped too.
+    text = func.regexp_replace(text, r"[*_`~]+", "", "g")
+    return func.regexp_replace(text, r"[#>|]+|-{3,}", " ", "g")
+
+
 def headline(query: ColumnElement[object]) -> ColumnElement[str]:
-    return func.ts_headline(_CONFIG, Article.body, query, _HEADLINE_OPTIONS)
+    return func.ts_headline(_CONFIG, plain_body(), query, _HEADLINE_OPTIONS)
 
 
-def rank(query: ColumnElement[object]) -> ColumnElement[float]:
-    return func.ts_rank(Article.search_vector, query)
+# ts_rank normalisation flag 1 divides by 1 + log(document length), so a long article that happens
+# to mention a word once cannot outscore a focused one. Used where weak matches are being pruned.
+NORMALISE_BY_LENGTH = 1
+
+
+def rank(query: ColumnElement[object], normalisation: int = 0) -> ColumnElement[float]:
+    return func.ts_rank(Article.search_vector, query, normalisation)

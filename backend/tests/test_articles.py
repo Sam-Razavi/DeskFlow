@@ -290,6 +290,28 @@ async def test_snippets_wrap_matches_in_highlight_markers_not_html(client, peopl
     assert "<mark>" not in item["snippet"]
 
 
+async def test_snippets_read_as_plain_sentences_not_markdown_source(client, people):
+    _, headers = people["agent"]
+    await create(
+        client,
+        headers,
+        publish=True,
+        title="Router guide",
+        body=(
+            "## Reset the router\n\n1. Hold the **reset button** for ten seconds.\n"
+            "2. See [the vendor guide](https://vendor.example/guide) for the router lights.\n\n"
+            "| Light | Meaning |\n|---|---|\n| Green | Router is fine |\n\n"
+            "```\nrouter --factory-reset\n```\n\n> Note: the router restarts twice."
+        ),
+    )
+    snippet = (await search(client, headers, "router"))["items"][0]["snippet"]
+    assert f"{HIGHLIGHT_START}router{HIGHLIGHT_END}" in snippet
+    for syntax in ("##", "**", "](", "https://", "```", "--factory-reset", "> ", "---", "|"):
+        assert syntax not in snippet, syntax
+    assert "the vendor guide" in snippet  # the link's label survives, its address does not
+    assert "reset button ." not in snippet  # removed emphasis leaves no stray gap
+
+
 async def test_filters_combine_with_search(client, library):
     assert titles(await search(client, library, "email", category="hardware")) == [PRINTER["title"]]
     assert (await search(client, library, "email", category="network"))["total"] == 0
@@ -501,3 +523,56 @@ async def test_unknown_article_is_a_404(client, people):
             **({"json": {}} if method == "patch" else {}),
         )
         assert res.status_code == 404, (method, path)
+
+
+async def test_suggestions_prefer_articles_containing_every_word(client, people):
+    _, headers = people["agent"]
+    await create(client, headers, publish=True, **VPN)
+    # Shares only the very common word "keeps" with the ticket title below.
+    await create(
+        client,
+        headers,
+        publish=True,
+        title="Keeping your backup codes safe",
+        body="Keeps these somewhere safe, but not on the same phone.",
+    )
+    res = await client.get(
+        "/api/articles/suggest", params={"q": "VPN keeps dropping"}, headers=headers
+    )
+    assert [a["title"] for a in res.json()] == [VPN["title"]]
+
+
+async def test_suggestions_fall_back_to_any_word_when_nothing_has_them_all(client, people):
+    _, headers = people["agent"]
+    await create(client, headers, publish=True, **VPN)
+    # No article says "again", so the strict tier is empty and the lenient tier takes over.
+    res = await client.get(
+        "/api/articles/suggest", params={"q": "VPN keeps dropping again"}, headers=headers
+    )
+    assert [a["title"] for a in res.json()] == [VPN["title"]]
+
+
+async def test_the_lenient_tier_drops_matches_far_weaker_than_the_best(client, people):
+    _, headers = people["agent"]
+    strong = await create(
+        client,
+        headers,
+        publish=True,
+        title="Outlook crashes on startup",
+        body="Outlook crashes when opening. Repair Outlook from the control panel.",
+    )
+    await create(
+        client,
+        headers,
+        publish=True,
+        title="Opening a shared mailbox",
+        body="A long guide about shared mailboxes. "
+        + "Filler text about calendars. " * 40
+        + "It does mention opening once.",
+    )
+    res = await client.get(
+        "/api/articles/suggest",
+        params={"q": "Outlook crashes opening attachments from Bob"},
+        headers=headers,
+    )
+    assert [a["id"] for a in res.json()] == [strong["id"]]

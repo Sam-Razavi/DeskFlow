@@ -13,11 +13,13 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 
 from app.core.config import get_settings
 from app.core.db import get_session
-from app.core.security import hash_password
+from app.core.security import create_token, hash_password
 from app.main import app
 from app.models import Base, Role, User
 
 PASSWORD = "password123"
+# Argon2 is deliberately slow, so hash once and reuse it for every test user.
+PASSWORD_HASH = hash_password(PASSWORD)
 
 
 @pytest.fixture(scope="session")
@@ -58,7 +60,7 @@ def make_user(session: AsyncSession):
             email=email or f"{role.value}@example.com",
             full_name=f"Test {role.value.title()}",
             role=role,
-            hashed_password=hash_password(PASSWORD),
+            hashed_password=PASSWORD_HASH,
         )
         session.add(user)
         await session.flush()
@@ -68,11 +70,10 @@ def make_user(session: AsyncSession):
 
 
 @pytest.fixture
-def auth_headers(client: AsyncClient):
+def auth_headers():
+    """Issue a token directly; the login flow itself is covered in test_auth.py."""
+
     async def _headers(user: User) -> dict[str, str]:
-        res = await client.post(
-            "/api/auth/login", data={"username": user.email, "password": PASSWORD}
-        )
-        return {"Authorization": f"Bearer {res.json()['access_token']}"}
+        return {"Authorization": f"Bearer {create_token(str(user.id), 'access')}"}
 
     return _headers

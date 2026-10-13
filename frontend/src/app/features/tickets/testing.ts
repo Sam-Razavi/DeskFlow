@@ -2,6 +2,7 @@ import { signal } from '@angular/core';
 import { HttpTestingController } from '@angular/common/http/testing';
 import { Role, User } from '../../core/auth/auth.models';
 import { AuthService } from '../../core/auth/auth.service';
+import { Asset } from '../../core/assets/asset.models';
 import { Ticket } from '../../core/tickets/ticket.models';
 
 export const makeUser = (role: Role): User => ({
@@ -61,3 +62,22 @@ export async function respond(
   }
   throw new Error(`No request to ${url} was made`);
 }
+
+export const makeAsset = (overrides: Partial<Asset> = {}): Asset => ({
+  id: 11,
+  asset_tag: 'DF-00011',
+  type: 'laptop',
+  manufacturer: 'Dell',
+  model: 'Latitude 7440',
+  serial_number: 'SN-1001',
+  status: 'in_stock',
+  assigned_to: null,
+  location: 'HQ stockroom',
+  purchase_date: '2026-01-15',
+  warranty_expires_on: '2029-01-15',
+  notes: null,
+  created_at: '2026-01-15T09:00:00Z',
+  updated_at: '2026-01-15T09:00:00Z',
+  warranty_state: 'active',
+  ...overrides,
+});

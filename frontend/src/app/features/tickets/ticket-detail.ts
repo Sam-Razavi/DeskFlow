@@ -40,6 +40,7 @@ import {
 import { TicketService } from '../../core/tickets/ticket.service';
 import { UserService } from '../../core/users/user.service';
 import { SlaBadge } from './sla-badge';
+import { TicketAssets } from './ticket-assets';
 import { Badge } from './status-badge';
 
 const UNASSIGNED = 0;
@@ -59,6 +60,7 @@ const UNASSIGNED = 0;
     MatSelectModule,
     Badge,
     SlaBadge,
+    TicketAssets,
   ],
   templateUrl: './ticket-detail.html',
   styleUrl: './ticket-detail.scss',

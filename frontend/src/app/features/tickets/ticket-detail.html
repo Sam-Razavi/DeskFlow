@@ -126,6 +126,8 @@
         </mat-card>
       }
 
+      <app-ticket-assets [ticketId]="t.id" [requesterId]="t.requester.id" [closed]="isClosed()" />
+
       @if (actions().length) {
         <div class="actions">
           @for (next of actions(); track next) {

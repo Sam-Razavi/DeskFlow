@@ -102,30 +102,9 @@ async def suggest_articles(
 
     Open to everyone signed in: this is the self-service step before someone files a ticket.
 
-    Articles containing every word come first. Only if there are none does it fall back to
-    articles containing *any* word, keeping just those close in quality to the best of them.
+    See services.articles.find_relevant for how matches are chosen.
     """
-    tiers = (
-        (search.all_words_query(q), 0.0),
-        (search.suggestion_query(q), search.LENIENT_RELATIVE_CUTOFF),
-    )
-    for query, cutoff in tiers:
-        score = search.rank(query, search.NORMALISE_BY_LENGTH)
-        rows = (
-            await session.execute(
-                select(Article, search.headline(query), score)
-                .where(
-                    Article.status == ArticleStatus.PUBLISHED,
-                    Article.search_vector.op("@@")(query),
-                )
-                .order_by(score.desc(), Article.updated_at.desc())
-                .limit(limit)
-            )
-        ).all()
-        if rows:
-            best = rows[0][2]
-            return [_summary(a, snippet) for a, snippet, rank in rows if rank >= best * cutoff]
-    return []
+    return [_summary(a, snippet) for a, snippet in await search.find_relevant(session, q, limit)]
 
 
 @router.post("", status_code=status.HTTP_201_CREATED)

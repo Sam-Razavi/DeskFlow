@@ -1,10 +1,11 @@
 import re
 from typing import Any
 
-from sqlalchemy import ColumnElement, String, cast, func, literal_column
+from sqlalchemy import ColumnElement, String, cast, func, literal_column, select
 from sqlalchemy.dialects.postgresql import TSQUERY
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.article import Article
+from app.models.article import Article, ArticleStatus
 
 # Search snippets mark matches with these two characters instead of HTML. The text comes from
 # user-written Markdown, so returning markup would make the client trust it. These characters are
@@ -88,3 +89,32 @@ NORMALISE_BY_LENGTH = 1
 
 def rank(query: ColumnElement[object], normalisation: int = 0) -> ColumnElement[float]:
     return func.ts_rank(Article.search_vector, query, normalisation)
+
+
+async def find_relevant(session: AsyncSession, text: str, limit: int) -> list[tuple[Article, str]]:
+    """Published articles that might answer `text`, each with a highlighted snippet, best first.
+
+    Articles containing every word come first. Only if there are none does it fall back to
+    articles containing *any* word, keeping just those close in quality to the best of them.
+    """
+    tiers = (
+        (all_words_query(text), 0.0),
+        (suggestion_query(text), LENIENT_RELATIVE_CUTOFF),
+    )
+    for query, cutoff in tiers:
+        score = rank(query, NORMALISE_BY_LENGTH)
+        rows = (
+            await session.execute(
+                select(Article, headline(query), score)
+                .where(
+                    Article.status == ArticleStatus.PUBLISHED,
+                    Article.search_vector.op("@@")(query),
+                )
+                .order_by(score.desc(), Article.updated_at.desc())
+                .limit(limit)
+            )
+        ).all()
+        if rows:
+            best = rows[0][2]
+            return [(a, snippet) for a, snippet, r in rows if r >= best * cutoff]
+    return []

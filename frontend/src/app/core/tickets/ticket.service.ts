@@ -22,6 +22,8 @@ export class TicketService {
     if (filters.category) params = params.set('category', filters.category);
     if (filters.q) params = params.set('q', filters.q);
     if (filters.unassigned) params = params.set('unassigned', true);
+    if (filters.assigneeId !== undefined) params = params.set('assignee_id', filters.assigneeId);
+    if (filters.sla) params = params.set('sla', filters.sla);
     return this.http.get<TicketPage>(this.base, { params });
   }
 

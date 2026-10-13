@@ -46,6 +46,20 @@ export class Login {
     this.form.setValue({ email, password: 'deskflow123' });
   }
 
+  private messageFor(err: unknown): string {
+    if (err instanceof HttpErrorResponse) {
+      if (err.status === 401) return 'Incorrect email or password.';
+      if (err.status === 429) {
+        // The server says how long to wait, so show its wording rather than a vague one.
+        const detail = (err.error as { detail?: unknown } | null)?.detail;
+        return typeof detail === 'string'
+          ? detail
+          : 'Too many attempts. Please wait a while and try again.';
+      }
+    }
+    return 'Something went wrong. Please try again.';
+  }
+
   protected async submit(): Promise<void> {
     if (this.form.invalid) return;
     this.loading.set(true);
@@ -56,11 +70,7 @@ export class Login {
       const returnUrl = this.route.snapshot.queryParamMap.get('returnUrl') ?? '/';
       await this.router.navigateByUrl(returnUrl);
     } catch (err) {
-      this.error.set(
-        err instanceof HttpErrorResponse && err.status === 401
-          ? 'Incorrect email or password.'
-          : 'Something went wrong. Please try again.',
-      );
+      this.error.set(this.messageFor(err));
     } finally {
       this.loading.set(false);
     }

@@ -1,0 +1,187 @@
+:host {
+  display: block;
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+
+  h1 {
+    margin: 0;
+  }
+}
+
+.error {
+  color: var(--mat-sys-error);
+}
+
+.muted {
+  color: var(--mat-sys-on-surface-variant);
+}
+
+a.hero,
+a.tile {
+  color: inherit;
+  text-decoration: none;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--mat-sys-outline-variant);
+  border-radius: 12px;
+  background: var(--mat-sys-surface-container-lowest);
+
+  &:hover,
+  &:focus-visible {
+    background: var(--mat-sys-surface-container-low);
+  }
+}
+
+// The one number the view leads with.
+.hero {
+  margin: 16px 0;
+  padding: 20px 24px;
+
+  &__label {
+    color: var(--mat-sys-on-surface-variant);
+    font: var(--mat-sys-title-medium);
+  }
+
+  &__value {
+    font-size: 56px;
+    line-height: 1.1;
+    font-weight: 600;
+  }
+}
+
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+}
+
+// Children keep plain class selectors; only the anchor itself needs the `a` prefix (see below).
+.tile {
+  &__label {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    color: var(--mat-sys-on-surface-variant);
+    font: var(--mat-sys-label-large);
+
+    mat-icon {
+      font-size: 18px;
+      width: 18px;
+      height: 18px;
+    }
+  }
+
+  &__value {
+    font-size: 32px;
+    line-height: 1.2;
+    font-weight: 600;
+  }
+}
+
+// Prefixed with `a` so these beat the `a.tile` border shorthand above.
+// Status colour sits only on the accent edge and the icon, never on the text.
+a.tile {
+  padding: 14px 16px;
+  border-left-width: 4px;
+
+  &.tile--critical {
+    border-left-color: var(--mat-sys-error);
+
+    mat-icon {
+      color: var(--mat-sys-error);
+    }
+  }
+
+  &.tile--warning {
+    border-left-color: #d98200;
+
+    mat-icon {
+      color: #b26a00;
+    }
+  }
+}
+
+.chart {
+  margin-top: 32px;
+
+  &__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+
+    h2 {
+      font: var(--mat-sys-title-medium);
+      margin: 0;
+    }
+  }
+
+  &__table {
+    width: 100%;
+    max-width: 420px;
+    border-collapse: collapse;
+
+    th,
+    td {
+      text-align: left;
+      padding: 8px 12px;
+      border-bottom: 1px solid var(--mat-sys-outline-variant);
+    }
+
+    td {
+      font-variant-numeric: tabular-nums;
+    }
+  }
+}
+
+.bars {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+  max-width: 640px;
+}
+
+.bar-row {
+  display: grid;
+  grid-template-columns: 112px 1fr;
+  align-items: center;
+  gap: 12px;
+  min-height: 32px;
+  border-radius: 6px;
+
+  &:focus-visible {
+    outline: 2px solid var(--mat-sys-primary);
+  }
+
+  &__label {
+    color: var(--mat-sys-on-surface-variant);
+    font: var(--mat-sys-body-medium);
+  }
+
+  // The hairline on the left is the baseline every bar grows from.
+  &__track {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border-left: 1px solid var(--mat-sys-outline);
+    min-height: 24px;
+  }
+
+  &__value {
+    font: var(--mat-sys-label-large);
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+// Thin (<= 24px), square at the baseline, rounded at the data end.
+.bar {
+  display: block;
+  height: 16px;
+  border-radius: 0 4px 4px 0;
+  background: var(--mat-sys-primary);
+}

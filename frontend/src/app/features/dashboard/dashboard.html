@@ -1,0 +1,88 @@
+<header class="head">
+  <h1>Welcome back, {{ auth.user()?.full_name }}</h1>
+  <button
+    mat-icon-button
+    type="button"
+    (click)="load()"
+    [disabled]="loading()"
+    aria-label="Refresh"
+  >
+    <mat-icon>refresh</mat-icon>
+  </button>
+</header>
+
+@if (failed()) {
+  <p class="error" role="alert">
+    Could not load the dashboard.
+    <button mat-button type="button" (click)="load()">Retry</button>
+  </p>
+} @else if (summary(); as s) {
+  <a class="hero" routerLink="/tickets">
+    <span class="hero__label">Open tickets</span>
+    <span class="hero__value">{{ s.open_total }}</span>
+  </a>
+
+  <section class="tiles" aria-label="Key figures">
+    @for (tile of tiles(); track tile.label) {
+      <a
+        class="tile"
+        [class.tile--critical]="tile.tone === 'critical' && tile.value > 0"
+        [class.tile--warning]="tile.tone === 'warning' && tile.value > 0"
+        routerLink="/tickets"
+        [queryParams]="tile.queryParams"
+      >
+        <span class="tile__label">
+          @if (tile.icon && tile.value > 0) {
+            <mat-icon aria-hidden="true">{{ tile.icon }}</mat-icon>
+          }
+          {{ tile.label }}
+        </span>
+        <span class="tile__value">{{ tile.value }}</span>
+      </a>
+    }
+  </section>
+
+  @if (auth.isStaff()) {
+    <section class="chart" aria-labelledby="by-priority">
+      <div class="chart__head">
+        <h2 id="by-priority">Open tickets by priority</h2>
+        <button mat-button type="button" (click)="showTable.set(!showTable())">
+          {{ showTable() ? 'View as chart' : 'View as table' }}
+        </button>
+      </div>
+
+      @if (showTable()) {
+        <table class="chart__table">
+          <thead>
+            <tr>
+              <th scope="col">Priority</th>
+              <th scope="col">Open tickets</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (bar of bars(); track bar.label) {
+              <tr>
+                <th scope="row">{{ bar.label }}</th>
+                <td>{{ bar.value }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      } @else {
+        <div class="bars" role="list">
+          @for (bar of bars(); track bar.label) {
+            <div class="bar-row" role="listitem" tabindex="0" [matTooltip]="bar.tooltip">
+              <span class="bar-row__label">{{ bar.label }}</span>
+              <span class="bar-row__track">
+                <span class="bar" [style.width.%]="bar.width"></span>
+                <span class="bar-row__value">{{ bar.value }}</span>
+              </span>
+            </div>
+          }
+        </div>
+      }
+    </section>
+  }
+} @else {
+  <p class="muted">Loading…</p>
+}

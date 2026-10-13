@@ -3,6 +3,7 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
+  DestroyRef,
   effect,
   inject,
   input,
@@ -25,9 +26,11 @@ import { AuthService } from '../../core/auth/auth.service';
 import {
   AuditEntry,
   CATEGORY_LABELS,
+  describeDeadline,
   nextStatuses,
   PRIORITY_LABELS,
   Priority,
+  SlaState,
   STATUS_LABELS,
   Ticket,
   TicketComment,
@@ -36,6 +39,7 @@ import {
 } from '../../core/tickets/ticket.models';
 import { TicketService } from '../../core/tickets/ticket.service';
 import { UserService } from '../../core/users/user.service';
+import { SlaBadge } from './sla-badge';
 import { Badge } from './status-badge';
 
 const UNASSIGNED = 0;
@@ -54,6 +58,7 @@ const UNASSIGNED = 0;
     MatInputModule,
     MatSelectModule,
     Badge,
+    SlaBadge,
   ],
   templateUrl: './ticket-detail.html',
   styleUrl: './ticket-detail.scss',
@@ -87,6 +92,39 @@ export class TicketDetail {
   });
   protected readonly isClosed = computed(() => this.ticket()?.status === 'closed');
 
+  // Ticks so the "due in …" text stays current while the page is open.
+  private readonly now = signal(new Date());
+
+  /** SLA details for staff; requesters don't see internal service-level measures. */
+  protected readonly slaPanel = computed(() => {
+    const t = this.ticket();
+    if (!t || !this.auth.isStaff()) return null;
+    const now = this.now();
+    const when = (iso: string) => describeDeadline(new Date(iso), now);
+    const paused = t.sla_paused_at !== null;
+    const done = t.status === 'resolved' || t.status === 'closed';
+
+    const response: { state: SlaState; text: string } = {
+      state: t.response_sla,
+      text: t.first_response_at
+        ? 'Replied ' + this.shortDate(t.first_response_at)
+        : done
+          ? 'No reply was needed'
+          : paused
+            ? 'Clock paused while pending'
+            : when(t.response_due_at),
+    };
+    const resolution: { state: SlaState; text: string } = {
+      state: t.resolution_sla,
+      text: t.resolved_at
+        ? 'Resolved ' + this.shortDate(t.resolved_at)
+        : paused
+          ? 'Clock paused while pending'
+          : when(t.resolution_due_at),
+    };
+    return { response, resolution };
+  });
+
   private readonly replyForm = viewChild(FormGroupDirective);
 
   protected readonly commentForm = inject(FormBuilder).nonNullable.group({
@@ -95,6 +133,8 @@ export class TicketDetail {
   });
 
   constructor() {
+    const timer = setInterval(() => this.now.set(new Date()), 30_000);
+    inject(DestroyRef).onDestroy(() => clearInterval(timer));
     effect(() => {
       const id = Number(this.id());
       untracked(() => void this.load(id));
@@ -131,6 +171,10 @@ export class TicketDetail {
 
   protected describe(entry: AuditEntry): string {
     if (entry.action === 'created') return 'created the ticket';
+    if (entry.action === 'sla_breached' || entry.action === 'sla_at_risk') {
+      const verb = entry.action === 'sla_breached' ? 'breached' : 'at risk';
+      return `SLA ${verb} (${String(entry.changes['kind'])})`;
+    }
     if (entry.action === 'commented') {
       return entry.changes['is_internal'] ? 'added an internal note' : 'added a comment';
     }
@@ -155,6 +199,10 @@ export class TicketDetail {
     return String(value);
   }
 
+  private shortDate(iso: string): string {
+    return new Date(iso).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+  }
+
   private requireId(): number {
     return Number(this.id());
   }
@@ -174,27 +222,48 @@ export class TicketDetail {
     }
   }
 
+  private fetchActivity(id: number) {
+    const staff = this.auth.isStaff();
+    return Promise.all([
+      firstValueFrom(this.tickets.comments(id)),
+      staff ? firstValueFrom(this.tickets.history(id)) : Promise.resolve([] as AuditEntry[]),
+    ]);
+  }
+
   private async refreshActivity(): Promise<void> {
-    const id = this.requireId();
-    this.comments.set(await firstValueFrom(this.tickets.comments(id)));
-    if (this.auth.isStaff()) this.history.set(await firstValueFrom(this.tickets.history(id)));
+    const [comments, history] = await this.fetchActivity(this.requireId());
+    this.comments.set(comments);
+    this.history.set(history);
   }
 
   private async load(id: number): Promise<void> {
     this.loading.set(true);
     this.notFound.set(false);
+
+    // Everything is requested at once. Only the ticket itself decides "not found"; the extras
+    // are best-effort, and the catch stops a failed one from becoming an unhandled rejection.
+    const ticket = firstValueFrom(this.tickets.get(id));
+    const activity = this.fetchActivity(id).catch(() => null);
+    const people =
+      this.auth.isStaff() && this.agents().length === 0
+        ? firstValueFrom(this.users.list()).catch(() => null)
+        : Promise.resolve(null);
+
     try {
-      this.ticket.set(await firstValueFrom(this.tickets.get(id)));
-      await this.refreshActivity();
-      if (this.auth.isStaff() && this.agents().length === 0) {
-        const all = await firstValueFrom(this.users.list());
-        this.agents.set(all.filter((u) => u.role !== 'requester' && u.is_active));
-      }
+      this.ticket.set(await ticket);
     } catch {
       this.ticket.set(null);
       this.notFound.set(true);
-    } finally {
       this.loading.set(false);
+      return;
     }
+
+    const [loaded, users] = await Promise.all([activity, people]);
+    if (loaded) {
+      this.comments.set(loaded[0]);
+      this.history.set(loaded[1]);
+    }
+    if (users) this.agents.set(users.filter((u) => u.role !== 'requester' && u.is_active));
+    this.loading.set(false);
   }
 }

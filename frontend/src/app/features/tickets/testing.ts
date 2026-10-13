@@ -34,6 +34,13 @@ export const makeTicket = (overrides: Partial<Ticket> = {}): Ticket => ({
   created_at: '2026-09-01T09:00:00Z',
   updated_at: '2026-09-01T09:00:00Z',
   resolved_at: null,
+  first_response_at: null,
+  response_due_at: '2026-09-01T13:00:00Z',
+  resolution_due_at: '2026-09-01T17:00:00Z',
+  sla_paused_at: null,
+  response_sla: 'ok',
+  resolution_sla: 'ok',
+  sla_state: 'ok',
   ...overrides,
 });
 

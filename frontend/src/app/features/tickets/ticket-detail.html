@@ -106,6 +106,26 @@
         </mat-card-content>
       </mat-card>
 
+      @if (slaPanel(); as sla) {
+        <mat-card appearance="outlined" class="sla-card">
+          <mat-card-content>
+            <h2 class="sla-card__title">Service level</h2>
+            <dl class="sla-list">
+              <dt>First response</dt>
+              <dd>
+                <app-sla-badge [state]="sla.response.state" />
+                <span class="sla-list__text">{{ sla.response.text }}</span>
+              </dd>
+              <dt>Resolution</dt>
+              <dd>
+                <app-sla-badge [state]="sla.resolution.state" />
+                <span class="sla-list__text">{{ sla.resolution.text }}</span>
+              </dd>
+            </dl>
+          </mat-card-content>
+        </mat-card>
+      }
+
       @if (actions().length) {
         <div class="actions">
           @for (next of actions(); track next) {

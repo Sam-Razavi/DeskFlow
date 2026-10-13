@@ -152,3 +152,36 @@ h2 {
     color: var(--mat-sys-on-surface-variant);
   }
 }
+
+.sla-card {
+  margin-top: 16px;
+
+  &__title {
+    margin: 0 0 8px;
+  }
+}
+
+.sla-list {
+  display: grid;
+  gap: 4px 0;
+  margin: 0;
+
+  dt {
+    color: var(--mat-sys-on-surface-variant);
+    font: var(--mat-sys-label-medium);
+    margin-top: 8px;
+  }
+
+  dd {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin: 0;
+  }
+
+  &__text {
+    color: var(--mat-sys-on-surface-variant);
+    font: var(--mat-sys-body-small);
+  }
+}

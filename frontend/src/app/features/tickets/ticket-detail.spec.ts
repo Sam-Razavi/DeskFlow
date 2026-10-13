@@ -166,4 +166,93 @@ describe('TicketDetail', () => {
     const form = fixture.debugElement.query(By.directive(FormGroupDirective));
     expect(form.injector.get(FormGroupDirective).submitted).toBe(false);
   });
+
+  it('shows the service-level panel to staff with a live countdown', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-09-01T15:00:00Z'));
+    try {
+      const { el } = await setup(
+        'agent',
+        makeTicket({ response_sla: 'breached', resolution_sla: 'at_risk' }),
+      );
+      const panel = el.querySelector('.sla-card')!.textContent;
+      expect(panel).toContain('Service level');
+      expect(panel).toContain('Breached');
+      expect(panel).toContain('overdue by 2h'); // response was due 13:00
+      expect(panel).toContain('At risk');
+      expect(panel).toContain('due in 2h'); // resolution due 17:00
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('explains a paused clock and a reply that has already been given', async () => {
+    const { el } = await setup(
+      'agent',
+      makeTicket({
+        status: 'pending',
+        sla_paused_at: '2026-09-01T10:00:00Z',
+        resolution_sla: 'paused',
+        response_sla: 'met',
+        first_response_at: '2026-09-01T09:30:00Z',
+      }),
+    );
+    const panel = el.querySelector('.sla-card')!.textContent;
+    expect(panel).toContain('Clock paused while pending');
+    expect(panel).toContain('Replied');
+    expect(panel).toContain('Paused');
+  });
+
+  it('hides the service-level panel from requesters', async () => {
+    const { el } = await setup('requester');
+    expect(el.querySelector('.sla-card')).toBeNull();
+  });
+
+  it('words system SLA events in the history', async () => {
+    const { fixture, http, el } = await setup('agent');
+    button(el, 'Mark resolved')!.click();
+    await respond(http, '/api/tickets/7/status', makeTicket({ status: 'resolved' }));
+    await respond(http, '/api/tickets/7/comments', []);
+    await respond(http, '/api/tickets/7/history', [
+      {
+        id: 3,
+        actor: null,
+        entity_type: 'ticket',
+        entity_id: 7,
+        action: 'sla_breached',
+        changes: { kind: 'resolution' },
+        created_at: '2026-09-01T17:01:00Z',
+      },
+    ]);
+    await fixture.whenStable();
+    const text = el.querySelector('.history')!.textContent;
+    expect(text).toContain('System');
+    expect(text).toContain('SLA breached (resolution)');
+  });
+
+  it('still shows the ticket when a secondary request (the agent list) fails', async () => {
+    TestBed.configureTestingModule({
+      imports: [TicketDetail],
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        provideRouter([]),
+        authStub('agent'),
+      ],
+    });
+    const fixture = TestBed.createComponent(TicketDetail);
+    const http = TestBed.inject(HttpTestingController);
+    fixture.componentRef.setInput('id', '7');
+
+    // All four requests are issued together, so answer them in any order.
+    await respond(http, '/api/users', null, { status: 500, statusText: 'Server Error' });
+    await respond(http, '/api/tickets/7', makeTicket());
+    await respond(http, '/api/tickets/7/comments', []);
+    await respond(http, '/api/tickets/7/history', []);
+    await fixture.whenStable();
+
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.querySelector('h1')?.textContent).toContain('Laptop will not boot');
+    expect(el.textContent).not.toContain("doesn't exist");
+  });
 });

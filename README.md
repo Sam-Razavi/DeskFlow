@@ -33,9 +33,10 @@ Built with **Angular 22**, **FastAPI**, **PostgreSQL** and **Redis**, containeri
 | Audit log: append-only record of every ticket, asset and article change (who, what, when, before/after), shown as a history on each record and in an admin screen with filters (record type, action, person, record number, dates) and a CSV export | ✅ |
 | Hardware inventory: generated asset tags, lifecycle status (in stock / assigned / in repair / retired), assignment to users, warranty tracking, ticket links, per-asset history. Requesters get a read-only "My equipment" view | ✅ |
 | Knowledge base: Markdown articles with a draft/published workflow, Postgres full-text search (ranking, stemming, phrases, highlighted snippets), a live-preview editor, and article suggestions while a ticket is being written | ✅ |
+| AI troubleshooting assistant (optional, staff only): suggests steps for a ticket using only published knowledge-base articles, always shows which articles it relied on, and says so when they don't cover the problem | ✅ (see below) |
 | Dashboard: open tickets, SLA breached / at risk, unassigned, my queue, assets in repair, warranties expiring, and a priority chart, with each figure linking to the matching ticket or asset list | ✅ |
 
-**Planned (phase 2):** AI troubleshooting assistant (retrieval over *published* KB articles only, via pgvector), email notifications, CSV asset import/export, attachments.
+**Planned (phase 2):** email notifications, CSV asset import/export, attachments.
 
 ## How tickets work
 
@@ -61,6 +62,11 @@ Built with **Angular 22**, **FastAPI**, **PostgreSQL** and **Redis**, containeri
 - **Knowledge base:** staff write articles in Markdown, as drafts first, and publish them for everyone. Requesters only ever see published articles; to them a draft doesn't exist.
   - **Search** is Postgres full-text search over a generated `tsvector` column with a GIN index. Titles outrank body text, word forms match (`printers` finds `printer`), and it understands `"exact phrases"` and `-exclusions`. Odd input never errors, because queries are built with `websearch_to_tsquery`.
   - **Snippets** show the matching part of the article as plain text with the matched words highlighted. The API marks matches with private delimiter characters rather than HTML, so the client never has to trust markup coming from the database.
+- **Troubleshooting assistant:** off until `ANTHROPIC_API_KEY` is set. An agent presses "Suggest steps" on a ticket (it never runs by itself, because each run costs money).
+  - **Grounded:** the articles are found with the same search as the suggestions above (published only, at most four) and are the only knowledge the model is given. If none match, the model is not called at all. The model must list the articles it used; ids it invented are dropped, and an answer citing nothing it was given is discarded and shown as "not covered".
+  - **Untrusted input:** ticket and article text are passed as delimited data with an instruction not to follow anything inside them. That reduces prompt injection but cannot eliminate it, so the output is rendered through the same sanitised Markdown path as articles, and it is advice for a human to check, never an action.
+  - **Limits and audit:** 20 requests per person per hour by default (every attempt counts, in Redis), a 502 if the model is unreachable, and an audit entry per run recording the model and which articles were retrieved and cited. The generated text itself is not stored.
+  - **Not verified:** the request shape is tested against the real SDK with a local fake server, and the logic with a fake client, but answer quality has not been checked against the live model.
   - **Suggestions** (`/api/articles/suggest`) power the "These articles might help" box on the new-ticket form and the staff view of a ticket. Articles containing every word of the title come first. Only when there are none does it fall back to articles containing any word, dropping ones that are much weaker than the best.
   - **Safe rendering:** article Markdown is rendered with `marked` and bound through Angular's HTML sanitiser, which removes scripts, event handlers and `javascript:` links. Tests cover hostile content.
   - Staff can delete drafts. Deleting a published article is admin-only. Every change is audited.
@@ -222,6 +228,9 @@ Notes:
 | `PORT`, `HOST` | api | `8000`, `0.0.0.0` | Listen port and address |
 | `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `ADMIN_NAME` | api | none | Creates the first admin if missing |
 | `SEED_DEMO_DATA` | api | `true` in development, `false` in production | Demo users and articles |
+| `ANTHROPIC_API_KEY` | api | none (assistant disabled) | Enables the troubleshooting assistant |
+| `ASSISTANT_MODEL`, `ASSISTANT_EFFORT` | api | `claude-opus-5-5`, `medium` | Model and reasoning effort; a cheaper model is a fine choice here |
+| `ASSISTANT_MAX_REQUESTS`, `ASSISTANT_WINDOW_SECONDS` | api | `20`, `3600` | Per-person usage limit |
 | `CORS_ORIGINS` | api | `["http://localhost:4200"]` | Only needed if the API is called from another origin |
 | `API_UPSTREAM`, `PORT` | web | `http://api:8000`, `80` | Where nginx proxies `/api`, and its listen port |
 

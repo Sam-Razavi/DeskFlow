@@ -1,0 +1,37 @@
+.shell {
+  height: 100%;
+
+  &__nav {
+    width: 240px;
+  }
+
+  &__brand {
+    font: var(--mat-sys-title-large);
+    padding: 20px 16px 12px;
+    color: var(--mat-sys-primary);
+  }
+
+  &__toolbar {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    border-bottom: 1px solid var(--mat-sys-outline-variant);
+  }
+
+  &__spacer {
+    flex: 1;
+  }
+
+  &__user {
+    font: var(--mat-sys-body-medium);
+    color: var(--mat-sys-on-surface-variant);
+    margin-right: 8px;
+    text-transform: capitalize;
+  }
+
+  &__content {
+    padding: 24px 16px;
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+}

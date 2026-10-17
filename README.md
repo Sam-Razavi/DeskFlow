@@ -20,6 +20,7 @@ Built with **Angular 22**, **FastAPI**, **PostgreSQL** and **Redis**, containeri
   <img src="docs/screenshots/kb-editor.png" width="49%" alt="Markdown article editor with live preview" />
 </p>
 <p>
+  <img src="docs/screenshots/live-login.png" width="49%" alt="The deployed app's sign-in page, running on Railway" />
   <img src="docs/screenshots/audit.png" width="49%" alt="Admin audit log with filters and CSV export" />
   <img src="docs/screenshots/assistant.png" width="49%" alt="Troubleshooting assistant on a ticket, suggesting steps and citing the knowledge-base article it used" />
 </p>

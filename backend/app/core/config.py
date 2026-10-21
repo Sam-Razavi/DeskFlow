@@ -51,6 +51,12 @@ class Settings(BaseSettings):
             return self.seed_demo_data
         return self.environment != "production"
 
+    @property
+    def demo_reset_enabled(self) -> bool:
+        """The daily demo reset deletes data, so it never relies on a default: it needs an
+        explicit SEED_DEMO_DATA=true."""
+        return self.seed_demo_data is True
+
     @field_validator("database_url")
     @classmethod
     def use_asyncpg_driver(cls, v: str) -> str:

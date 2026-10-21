@@ -13,6 +13,9 @@ first-reply rule, asset tags from the sequence, and an audit entry for every cha
 it happened. The SLA monitor is replayed too, once a minute like the worker, so tickets carry the
 at-risk and breach flags (and their audit entries) the worker would have recorded. When the real
 worker next runs, it finds nothing new to flag.
+
+reset_demo() wipes the demo and creates it again relative to the current time. The worker runs it
+daily when SEED_DEMO_DATA=true; see its docstring for the safeguards.
 """
 
 import asyncio
@@ -23,7 +26,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Any
 
-from sqlalchemy import exists, insert, select
+from sqlalchemy import exists, insert, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.access import STAFF_ROLES
@@ -419,6 +422,58 @@ async def _seed_helpdesk(
 def _next_minute(at: datetime) -> datetime:
     start = at.replace(second=0, microsecond=0)
     return start if start == at else start + MONITOR_INTERVAL
+
+
+# --- Daily reset ------------------------------------------------------------------------------
+
+# Everything the demo creates except accounts. TRUNCATE without CASCADE: if a table that is not
+# listed here ever references one of these, the reset fails instead of silently emptying it too.
+DEMO_TABLES = ("ticket_assets", "ticket_comments", "tickets", "assets", "articles", "audit_logs")
+
+
+class DemoResetRefused(RuntimeError):
+    """The database is not a demo the reset may replace."""
+
+
+async def reset_demo(
+    session: AsyncSession, *, settings: Settings | None = None, now: datetime | None = None
+) -> SeedResult:
+    """Replace the demo's records with a fresh copy relative to `now`, in one transaction.
+
+    For the public demo only: SLA timers are wall-clock, so a demo created once drifts into
+    "everything breached" within days, and visitors' changes pile up. Running this daily keeps it
+    looking like a working helpdesk.
+
+    It deletes data, so it refuses (DemoResetRefused) unless both hold:
+
+    - SEED_DEMO_DATA is explicitly true. No default enables it, not even in development;
+    - the documented demo accounts exist with their roles, so this is a demo database.
+
+    Tickets, comments, ticket links, equipment, articles and the audit log are emptied and the
+    demo is created again; accounts are kept. Emptying the audit log is a deliberate exception to
+    its append-only rule, which protects the history of records that exist. The reset restores a
+    disposable fixture, like reloading a database snapshot: the records the log describes are
+    gone, and keeping their entries would leave a growing pile of rows about records that no
+    longer exist, interleaved with the new history. Id sequences and asset tags restart too, so
+    the demo is the same every day. Visitors never see it half done: the transaction commits all
+    of it or none.
+    """
+    settings = settings or get_settings()
+    if not settings.demo_reset_enabled:
+        raise DemoResetRefused("Demo reset needs SEED_DEMO_DATA=true")
+    roles = {email: role for email, role in await session.execute(select(User.email, User.role))}
+    missing = [email for email, _, role in DEMO_USERS if roles.get(email) != role]
+    if missing:
+        raise DemoResetRefused(f"Not a demo database: missing demo accounts {missing}")
+
+    await session.execute(text(f"TRUNCATE {', '.join(DEMO_TABLES)} RESTART IDENTITY"))
+    await session.execute(text("ALTER SEQUENCE asset_tag_seq RESTART"))
+    session.expunge_all()  # anything loaded before the truncate is gone
+
+    result = await seed(session, settings=settings, now=now)
+    assert result is not None  # demo_reset_enabled implies demo_data_enabled
+    await session.commit()
+    return result
 
 
 async def main() -> None:

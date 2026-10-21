@@ -118,7 +118,7 @@ async def test_a_paused_ticket_is_flagged_once_it_resumes_and_runs_out_of_time(s
 def test_worker_runs_the_check_every_minute_and_at_startup():
     from app.worker import WorkerSettings, sla_check
 
-    (job,) = WorkerSettings.cron_jobs
+    job = WorkerSettings.cron_jobs[0]  # a demo reset may follow, see test_demo_reset.py
     assert job.coroutine is sla_check
     assert job.second == 0
     assert job.run_at_startup is True

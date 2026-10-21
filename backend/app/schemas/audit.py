@@ -16,6 +16,10 @@ class AuditLogRead(BaseModel):
     action: str
     changes: dict[str, Any]
     created_at: datetime
+    # Whether the record the entry is about still exists. Records can be deleted (and the demo
+    # is replaced daily) while their history stays, so the audit screen only links live ones.
+    # Histories of a single record are only served for records that exist.
+    record_exists: bool = True
 
 
 class AuditLogPage(BaseModel):

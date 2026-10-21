@@ -266,3 +266,20 @@ async def test_an_empty_export_is_just_the_header(client, people):
     _, admin = people["admin"]
     rows = parse(await get(client, admin, "/api/audit-logs/export.csv", action="nothing"))
     assert len(rows) == 1
+
+
+async def test_says_which_entries_are_about_records_that_no_longer_exist(client, people):
+    _, agent_headers = people["agent"]
+    _, admin_headers = people["admin"]
+    ticket = await create_ticket(client, agent_headers)
+    article = await create_article(client, agent_headers)
+    res = await client.delete(f"/api/articles/{article['id']}", headers=agent_headers)
+    assert res.status_code == 204
+
+    res = await client.get("/api/audit-logs", headers=admin_headers)
+    assert res.status_code == 200
+    exists = {(e["entity_type"], e["entity_id"]): e["record_exists"] for e in res.json()["items"]}
+
+    # The deleted article's history stays, marked so the screen does not link to it.
+    assert exists[("article", article["id"])] is False
+    assert exists[("ticket", ticket["id"])] is True

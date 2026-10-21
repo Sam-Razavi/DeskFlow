@@ -1,12 +1,18 @@
 import json
+from collections import defaultdict
+from collections.abc import Sequence
 from datetime import UTC, date, datetime, time, timedelta
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, Query, Response
 from sqlalchemy import Select, func, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import SessionDep, require_roles
+from app.models.article import Article
+from app.models.asset import Asset
 from app.models.audit import AuditLog
+from app.models.ticket import Ticket
 from app.models.user import Role, User
 from app.schemas.audit import AuditFacets, AuditLogPage, AuditLogRead
 from app.services.csv_export import to_csv
@@ -63,6 +69,30 @@ class Filters:
 FilterDep = Annotated[Filters, Depends()]
 
 
+# The record types that have a page of their own, by the entity_type audit entries use.
+RECORD_MODELS: dict[str, type[Ticket] | type[Asset] | type[Article]] = {
+    "ticket": Ticket,
+    "asset": Asset,
+    "article": Article,
+}
+
+
+async def _existing_records(
+    session: AsyncSession, entries: Sequence[AuditLog]
+) -> set[tuple[str, int]]:
+    """(entity_type, entity_id) of the records these entries are about that still exist."""
+    wanted: defaultdict[str, set[int]] = defaultdict(set)
+    for e in entries:
+        if e.entity_type in RECORD_MODELS:
+            wanted[e.entity_type].add(e.entity_id)
+    found: set[tuple[str, int]] = set()
+    for entity_type, ids in wanted.items():
+        model = RECORD_MODELS[entity_type]
+        rows = await session.scalars(select(model.id).where(model.id.in_(ids)))
+        found.update((entity_type, i) for i in rows)
+    return found
+
+
 def _newest_first(stmt: AuditSelect) -> AuditSelect:
     return stmt.order_by(AuditLog.created_at.desc(), AuditLog.id.desc())
 
@@ -77,8 +107,15 @@ async def list_audit_logs(
 ) -> AuditLogPage:
     stmt = filters.apply(select(AuditLog))
     total = await session.scalar(select(func.count()).select_from(stmt.subquery())) or 0
-    rows = await session.scalars(_newest_first(stmt).limit(limit).offset(offset))
-    return AuditLogPage(items=[AuditLogRead.model_validate(r) for r in rows], total=total)
+    rows = list(await session.scalars(_newest_first(stmt).limit(limit).offset(offset)))
+    existing = await _existing_records(session, rows)
+    items = [
+        AuditLogRead.model_validate(r).model_copy(
+            update={"record_exists": (r.entity_type, r.entity_id) in existing}
+        )
+        for r in rows
+    ]
+    return AuditLogPage(items=items, total=total)
 
 
 @router.get("/facets")

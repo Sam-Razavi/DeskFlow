@@ -71,6 +71,12 @@ async def _commit(session: AsyncSession) -> None:
         raise HTTPException(status.HTTP_409_CONFLICT, CONFLICT) from None
 
 
+async def next_asset_tag(session: AsyncSession) -> str:
+    """A generated tag (DF-00042), numbered from a sequence so it is safe under concurrency."""
+    number = await session.scalar(select(ASSET_TAG_SEQ.next_value()))
+    return f"DF-{number:05d}"
+
+
 async def _ensure_unique(
     session: AsyncSession, tag: str | None, serial: str | None, own_id: int | None = None
 ) -> None:
@@ -89,10 +95,7 @@ async def create_asset(session: SessionDep, user: StaffUser, body: AssetCreate) 
     serial = body.serial_number or None
     await _ensure_unique(session, body.asset_tag, serial)
 
-    tag = body.asset_tag
-    if tag is None:
-        number = await session.scalar(select(ASSET_TAG_SEQ.next_value()))
-        tag = f"DF-{number:05d}"
+    tag = body.asset_tag if body.asset_tag is not None else await next_asset_tag(session)
 
     asset = Asset(
         asset_tag=tag,

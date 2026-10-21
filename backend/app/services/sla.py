@@ -103,6 +103,17 @@ def on_status_change(
             ticket.response_due_at += waited
 
 
+def register_reply(
+    ticket: MutableSlaFields, now: datetime, *, by_staff: bool, by_requester: bool, internal: bool
+) -> bool:
+    """Stop the response clock if this comment is the first public reply from staff (not an
+    internal note, and not the requester answering themselves). Return whether it did."""
+    if by_staff and not internal and not by_requester and ticket.first_response_at is None:
+        ticket.first_response_at = now
+        return True
+    return False
+
+
 def _running_state(created_at: datetime, due: datetime, now: datetime) -> SlaState:
     if now > due:
         return SlaState.BREACHED

@@ -33,8 +33,14 @@ def record(
     entity_id: int,
     action: str,
     changes: Mapping[str, Any],
+    *,
+    at: datetime | None = None,
 ) -> None:
-    """Stage an audit row in the caller's transaction (commits or rolls back with it)."""
+    """Stage an audit row in the caller's transaction (commits or rolls back with it).
+
+    The time defaults to the database clock. Code that replays events at a known time (the SLA
+    monitor, the demo seed) passes it as `at`, so the entry carries the moment of the change.
+    """
     session.add(
         AuditLog(
             actor_id=actor.id if actor else None,
@@ -42,5 +48,6 @@ def record(
             entity_id=entity_id,
             action=action,
             changes={k: _jsonable(v) for k, v in changes.items()},
+            **({"created_at": at} if at is not None else {}),
         )
     )

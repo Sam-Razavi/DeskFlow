@@ -20,7 +20,7 @@ from app.schemas.ticket import (
     TicketRead,
     TicketUpdate,
 )
-from app.services import audit, sla
+from app.services import audit, sla, workflow
 from app.services.workflow import can_transition
 
 router = APIRouter(prefix="/tickets", tags=["tickets"])
@@ -171,18 +171,6 @@ async def update_ticket(
     return TicketRead.model_validate(ticket)
 
 
-def _apply_status(ticket: Ticket, target: TicketStatus) -> None:
-    now = sla.utcnow()
-    sla.on_status_change(ticket, ticket.status, target, now)
-    ticket.status = target
-    if target == TicketStatus.RESOLVED or (
-        target == TicketStatus.CLOSED and ticket.resolved_at is None
-    ):
-        ticket.resolved_at = now  # closing straight from New also counts as the resolution
-    elif target == TicketStatus.IN_PROGRESS:
-        ticket.resolved_at = None  # reopened
-
-
 @router.post("/{ticket_id}/status")
 async def change_status(
     session: SessionDep, user: CurrentUser, ticket_id: int, body: StatusChange
@@ -193,7 +181,7 @@ async def change_status(
             status.HTTP_409_CONFLICT, f"Cannot move ticket from {ticket.status} to {body.status}"
         )
     before = _snapshot(ticket)
-    _apply_status(ticket, body.status)
+    workflow.apply_status(ticket, body.status, sla.utcnow())
     audit.record(
         session, user, "ticket", ticket.id, "status_changed", audit.diff(before, _snapshot(ticket))
     )
@@ -216,10 +204,7 @@ async def assign_ticket(
             raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Assignee must be an agent")
 
     before = _snapshot(ticket)
-    ticket.assignee_id = body.assignee_id
-    # Picking a ticket up implies work has started.
-    if body.assignee_id is not None and ticket.status == TicketStatus.NEW:
-        _apply_status(ticket, TicketStatus.IN_PROGRESS)
+    workflow.assign(ticket, body.assignee_id, sla.utcnow())
     if changes := audit.diff(before, _snapshot(ticket)):
         audit.record(session, user, "ticket", ticket.id, "assigned", changes)
     await session.commit()
@@ -255,14 +240,13 @@ async def add_comment(
     session.add(comment)
     await session.flush()
     changes: dict[str, object] = {"comment_id": comment.id, "is_internal": comment.is_internal}
-    # The first public reply from staff (other than the requester) stops the response clock.
-    if (
-        is_staff(user)
-        and not body.is_internal
-        and user.id != ticket.requester_id
-        and ticket.first_response_at is None
+    if sla.register_reply(
+        ticket,
+        sla.utcnow(),
+        by_staff=is_staff(user),
+        by_requester=user.id == ticket.requester_id,
+        internal=body.is_internal,
     ):
-        ticket.first_response_at = sla.utcnow()
         changes["first_response"] = True
     audit.record(session, user, "ticket", ticket.id, "commented", changes)
     await session.commit()

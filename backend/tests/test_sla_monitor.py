@@ -47,6 +47,16 @@ async def test_flags_a_ticket_that_is_at_risk(session, people):
     assert await audit_actions(session, ticket) == [("sla_at_risk", {"kind": "resolution"}, None)]
 
 
+async def test_the_audit_entry_carries_the_time_of_the_check(session, people):
+    req, _ = people["req"]
+    ticket = await add_ticket(session, req, age=9 * H)
+
+    await check_sla(session, NOW)
+
+    rows = await session.scalars(select(AuditLog).where(AuditLog.entity_id == ticket.id))
+    assert {r.created_at for r in rows} == {NOW}
+
+
 async def test_flags_breaches_of_both_clocks(session, people):
     req, _ = people["req"]
     ticket = await add_ticket(session, req, age=9 * H)  # never answered; P2 is 4h / 8h

@@ -18,7 +18,13 @@ import { MatSelectModule } from '@angular/material/select';
 import { MatTableModule } from '@angular/material/table';
 import { RouterLink } from '@angular/router';
 import { debounceTime, firstValueFrom } from 'rxjs';
-import { describeChanges, humanize, recordLink } from '../../core/audit/audit-format';
+import {
+  describeChanges,
+  humanize,
+  recordGone,
+  recordLabel,
+  recordLink,
+} from '../../core/audit/audit-format';
 import { AuditFacets, AuditFilters } from '../../core/audit/audit.models';
 import { AuditService } from '../../core/audit/audit.service';
 import { User } from '../../core/auth/auth.models';
@@ -51,6 +57,8 @@ export class AuditLog {
   protected readonly columns = ['when', 'who', 'action', 'record', 'details'];
   protected readonly humanize = humanize;
   protected readonly recordLink = recordLink;
+  protected readonly recordLabel = recordLabel;
+  protected readonly recordGone = recordGone;
 
   protected readonly rows = signal<AuditEntry[]>([]);
   protected readonly total = signal(0);

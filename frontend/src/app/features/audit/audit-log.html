@@ -92,9 +92,12 @@
       <th mat-header-cell *matHeaderCellDef>Record</th>
       <td mat-cell *matCellDef="let e" class="nowrap">
         @if (recordLink(e); as link) {
-          <a class="link" [routerLink]="link">{{ humanize(e.entity_type) }} #{{ e.entity_id }}</a>
+          <a class="link" [routerLink]="link">{{ recordLabel(e) }}</a>
         } @else {
-          <span class="capitalize">{{ humanize(e.entity_type) }} #{{ e.entity_id }}</span>
+          <span class="capitalize">{{ recordLabel(e) }}</span>
+          @if (recordGone(e)) {
+            <span class="gone">deleted</span>
+          }
         }
       </td>
     </ng-container>

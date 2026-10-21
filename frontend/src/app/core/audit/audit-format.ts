@@ -10,10 +10,24 @@ const RECORD_ROUTES: Record<string, string> = {
   article: '/kb',
 };
 
+/** True when the entry is about a record that has since been removed. */
+export function recordGone(entry: AuditEntry): boolean {
+  return (
+    entry.entity_type in RECORD_ROUTES &&
+    (entry.action === 'deleted' || entry.record_exists === false)
+  );
+}
+
 export function recordLink(entry: AuditEntry): string[] | null {
   const base = RECORD_ROUTES[entry.entity_type];
-  // A deleted record has nothing left to open.
-  return base && entry.action !== 'deleted' ? [base, String(entry.entity_id)] : null;
+  // A removed record has nothing left to open.
+  return base && !recordGone(entry) ? [base, String(entry.entity_id)] : null;
+}
+
+/** "ticket #7", or just the kind for entries about no single record (such as a demo reset). */
+export function recordLabel(entry: AuditEntry): string {
+  const kind = humanize(entry.entity_type);
+  return entry.entity_id > 0 ? `${kind} #${entry.entity_id}` : kind;
 }
 
 export const humanize = (text: string) =>

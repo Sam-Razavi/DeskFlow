@@ -106,3 +106,9 @@ td {
     color: var(--mat-sys-error);
   }
 }
+
+.gone {
+  margin-left: 6px;
+  color: var(--mat-sys-on-surface-variant);
+  font: var(--mat-sys-label-small);
+}

@@ -93,6 +93,34 @@ describe('AuditLog', () => {
     expect(el.querySelector('details.raw')).toBeNull();
   });
 
+  it('shows a removed record as plain text marked deleted, and a demo reset readably', async () => {
+    const { el } = await setup({
+      items: [
+        entry({ record_exists: false }),
+        entry({
+          id: 2,
+          actor: null,
+          entity_type: 'demo',
+          entity_id: 0,
+          action: 'reset',
+          changes: { tickets_removed: 20, tickets_created: 20 },
+          record_exists: false,
+        }),
+      ],
+      total: 2,
+    });
+    const rows = [...el.querySelectorAll('tr[mat-row]')];
+    expect(el.querySelector('tr[mat-row] a.link')).toBeNull();
+    expect(rows[0].textContent).toContain('ticket #7');
+    expect(rows[0].querySelector('.gone')!.textContent).toBe('deleted');
+    const reset = rows[1].textContent!.replace(/\s+/g, ' ');
+    expect(reset).toContain('System');
+    expect(reset).toContain('reset');
+    expect(reset).not.toContain('#0');
+    expect(reset).toContain('tickets removed: 20; tickets created: 20');
+    expect(rows[1].querySelector('.gone')).toBeNull();
+  });
+
   it('shows every filter choice that exists in the log', async () => {
     const { el } = await setup();
     const labels = [...el.querySelectorAll('mat-label')].map((l) => l.textContent?.trim());

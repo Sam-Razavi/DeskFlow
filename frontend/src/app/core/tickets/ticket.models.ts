@@ -56,6 +56,8 @@ export interface AuditEntry {
   action: string;
   changes: Record<string, unknown>;
   created_at: string;
+  /** False when the record has since been removed (only the audit log list reports this). */
+  record_exists?: boolean;
 }
 
 export interface TicketFilters {

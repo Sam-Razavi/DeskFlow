@@ -1,5 +1,5 @@
 import { AuditEntry } from '../tickets/ticket.models';
-import { describeChanges, humanize, recordLink } from './audit-format';
+import { describeChanges, humanize, recordGone, recordLabel, recordLink } from './audit-format';
 
 const entry = (overrides: Partial<AuditEntry> = {}): AuditEntry => ({
   id: 1,
@@ -65,6 +65,24 @@ describe('recordLink', () => {
   it('does not link a record that was deleted, or one it does not know', () => {
     expect(recordLink(entry({ entity_type: 'article', action: 'deleted' }))).toBeNull();
     expect(recordLink(entry({ entity_type: 'mystery' }))).toBeNull();
+  });
+
+  it('does not link a record the server says no longer exists', () => {
+    const removed = entry({ entity_type: 'ticket', record_exists: false });
+    expect(recordLink(removed)).toBeNull();
+    expect(recordGone(removed)).toBe(true);
+    expect(recordGone(entry({ entity_type: 'ticket', record_exists: true }))).toBe(false);
+    // Not a record with a page: nothing to call deleted.
+    expect(recordGone(entry({ entity_type: 'demo', entity_id: 0, record_exists: false }))).toBe(
+      false,
+    );
+  });
+});
+
+describe('recordLabel', () => {
+  it('names the record, or just the kind when the entry is about no single record', () => {
+    expect(recordLabel(entry({ entity_type: 'ticket', entity_id: 7 }))).toBe('ticket #7');
+    expect(recordLabel(entry({ entity_type: 'demo', entity_id: 0 }))).toBe('demo');
   });
 });
 

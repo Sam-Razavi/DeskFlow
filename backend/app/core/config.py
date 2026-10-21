@@ -41,6 +41,16 @@ class Settings(BaseSettings):
 
     cors_origins: list[str] = ["http://localhost:4200"]
 
+    # Demo accounts and sample data. The accounts have publicly documented passwords, so unset
+    # means on in development and off in production, the same rule as start.sh.
+    seed_demo_data: bool | None = None
+
+    @property
+    def demo_data_enabled(self) -> bool:
+        if self.seed_demo_data is not None:
+            return self.seed_demo_data
+        return self.environment != "production"
+
     @field_validator("database_url")
     @classmethod
     def use_asyncpg_driver(cls, v: str) -> str:

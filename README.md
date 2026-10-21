@@ -72,7 +72,7 @@ Built with **Angular 22**, **FastAPI**, **PostgreSQL** and **Redis**, containeri
   - **Suggestions** (`/api/articles/suggest`) power the "These articles might help" box on the new-ticket form and the staff view of a ticket. Articles containing every word of the title come first. Only when there are none does it fall back to articles containing any word, dropping ones that are much weaker than the best.
   - **Safe rendering:** article Markdown is rendered with `marked` and bound through Angular's HTML sanitiser, which removes scripts, event handlers and `javascript:` links. Tests cover hostile content.
   - Staff can delete drafts. Deleting a published article is admin-only. Every change is audited.
-- **Audit log screen (admins):** filter by record type, action, person, record number and date range, expand any entry to its raw JSON, and export the filtered result as CSV. Entries are only ever inserted, never edited or deleted (the public demo's daily reset, which replaces the whole demo, is the one exception; see [Demo accounts](#demo-accounts)). The export is capped at 10,000 rows and neutralises spreadsheet formulas (a name like `=HYPERLINK(...)` is written as text), so opening it in Excel cannot run anything.
+- **Audit log screen (admins):** filter by record type, action, person, record number and date range, expand any entry to its raw JSON, and export the filtered result as CSV. Entries are only ever inserted, never edited or deleted, and they outlive their records: an entry about a record that has since been deleted is shown as plain text marked "deleted" instead of a link. The export is capped at 10,000 rows and neutralises spreadsheet formulas (a name like `=HYPERLINK(...)` is written as text), so opening it in Excel cannot run anything.
 - **Audit trail:** every write records who did it and the before/after values in the same database transaction as the change, so a rolled-back request leaves no trace.
 
 ## Architecture
@@ -144,7 +144,7 @@ All demo accounts use the password `deskflow123`. The seed (`python -m app.seed`
 - **History:** it is replayed through the app's own rules rather than inserted as finished rows: SLA deadlines, the workflow, asset tags, an audit entry for every change at the time it happened, and the SLA monitor once a minute, so the seeded at-risk and breach flags are exactly what the worker would have recorded. Times are relative to when it runs.
 - Tickets and equipment are only added to an empty helpdesk, so sample records never mix with real ones.
 
-**Daily reset (public demo).** SLA timers are wall-clock, so a demo seeded once is all breached within days, and visitors change things. When `SEED_DEMO_DATA=true` is set on the worker, it recreates the demo every day at 03:30 UTC: tickets, comments, equipment, articles and the audit log are emptied and seeded again relative to the current time, in one transaction, so visitors never see it half done. Accounts are kept. It never runs by default, not even in development, and it refuses unless the documented demo accounts exist. Emptying the audit log is a deliberate exception to its append-only rule: the reset restores a disposable fixture, like reloading a database snapshot, and keeping entries about records that no longer exist would only clutter the log.
+**Daily reset (public demo).** SLA timers are wall-clock, so a demo seeded once is all breached within days, and visitors change things. When `SEED_DEMO_DATA=true` is set on the worker, it recreates the demo every day at 03:30 UTC: tickets (with their comments and equipment links), equipment and articles are deleted and seeded again relative to the current time, in one transaction, so visitors never see it half done. Accounts are kept. The audit log is never touched: the old records' history stays, the new records' history is added to it, and the reset itself is logged with what it removed and created. Ids and asset tags are never reused, so an old entry can't come to describe a new record. It never runs by default, not even in development, and it refuses unless the documented demo accounts exist.
 
 | Role | Email |
 |---|---|
@@ -206,7 +206,8 @@ What the containers do on every deploy, which you can rely on:
 - **Demo accounts are off in production.** They have publicly documented passwords, so they are only
   created in production if you set `SEED_DEMO_DATA=true`. For a public portfolio demo that is the point,
   but never do it for real data. Set it on the **api** to seed the demo on deploy, and on the **worker** as
-  well to reset it daily (the reset empties tickets, equipment, articles and the audit log).
+  well to reset it daily (the reset deletes and recreates tickets, equipment and articles; the audit log
+  only grows).
 - The app **refuses to start in production** with the built-in development secret or one shorter than
   32 characters, and rejected secrets are not written to the logs.
 - Sign-in is **rate limited** through Redis: five wrong passwords per person and address, and 30 per

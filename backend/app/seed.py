@@ -465,7 +465,7 @@ async def reset_demo(
 
     Tickets (with their comments and equipment links), equipment and articles are removed and the
     demo is created again; accounts are kept. The audit log is never changed: the history of the
-    removed records stays as it was, the new records' history is added after it, and the reset
+    removed records stays as it was, the new records' history is added to it, and the reset
     itself is recorded as one more entry with what it removed and created. Ids and asset tags are
     never reused (their sequences carry on), so an old entry can't come to describe a new record.
     Visitors never see the demo half replaced: the transaction commits all of it or none.

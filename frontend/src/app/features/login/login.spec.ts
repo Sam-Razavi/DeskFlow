@@ -29,6 +29,13 @@ describe('Login', () => {
     );
   });
 
+  it('says the demo data is reset daily', async () => {
+    const fixture = TestBed.createComponent(Login);
+    await fixture.whenStable();
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.querySelector('.login__demo')?.textContent).toContain('Demo data resets daily');
+  });
+
   it('shows an error on bad credentials', async () => {
     const fixture = TestBed.createComponent(Login);
     const http = TestBed.inject(HttpTestingController);

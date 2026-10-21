@@ -34,4 +34,9 @@
     gap: 8px;
     flex-wrap: wrap;
   }
+
+  &__demo-note {
+    margin: 12px 0 0;
+    font: var(--mat-sys-body-small);
+  }
 }

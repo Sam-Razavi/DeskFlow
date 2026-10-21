@@ -14,8 +14,9 @@ it happened. The SLA monitor is replayed too, once a minute like the worker, so 
 at-risk and breach flags (and their audit entries) the worker would have recorded. When the real
 worker next runs, it finds nothing new to flag.
 
-reset_demo() wipes the demo and creates it again relative to the current time. The worker runs it
-daily when SEED_DEMO_DATA=true; see its docstring for the safeguards.
+reset_demo() replaces the demo's records with a fresh copy relative to the current time, leaving
+the audit log untouched apart from its own entry. The worker runs it daily when
+SEED_DEMO_DATA=true; see its docstring for the safeguards.
 """
 
 import asyncio
@@ -26,7 +27,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Any
 
-from sqlalchemy import exists, insert, select, text
+from sqlalchemy import delete, exists, insert, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.access import STAFF_ROLES
@@ -426,37 +427,48 @@ def _next_minute(at: datetime) -> datetime:
 
 # --- Daily reset ------------------------------------------------------------------------------
 
-# Everything the demo creates except accounts. TRUNCATE without CASCADE: if a table that is not
-# listed here ever references one of these, the reset fails instead of silently emptying it too.
-DEMO_TABLES = ("ticket_assets", "ticket_comments", "tickets", "assets", "articles", "audit_logs")
+# What the reset removes, children before parents, by the name the audit entry gives each count.
+# The audit log is not among them: it is only ever appended to. Its entries name records by type
+# and id, with no foreign key, so removing a record leaves its history exactly as it was.
+_RESET_DELETES: tuple[tuple[str, Any], ...] = (
+    ("ticket_links", ticket_assets),
+    ("comments", TicketComment.__table__),
+    ("tickets", Ticket.__table__),
+    ("assets", Asset.__table__),
+    ("articles", Article.__table__),
+)
 
 
 class DemoResetRefused(RuntimeError):
     """The database is not a demo the reset may replace."""
 
 
+@dataclass(frozen=True)
+class DemoResetResult:
+    removed: dict[str, int]
+    created: SeedResult
+
+
 async def reset_demo(
     session: AsyncSession, *, settings: Settings | None = None, now: datetime | None = None
-) -> SeedResult:
+) -> DemoResetResult:
     """Replace the demo's records with a fresh copy relative to `now`, in one transaction.
 
     For the public demo only: SLA timers are wall-clock, so a demo created once drifts into
     "everything breached" within days, and visitors' changes pile up. Running this daily keeps it
     looking like a working helpdesk.
 
-    It deletes data, so it refuses (DemoResetRefused) unless both hold:
+    It deletes records, so it refuses (DemoResetRefused) unless both hold:
 
     - SEED_DEMO_DATA is explicitly true. No default enables it, not even in development;
     - the documented demo accounts exist with their roles, so this is a demo database.
 
-    Tickets, comments, ticket links, equipment, articles and the audit log are emptied and the
-    demo is created again; accounts are kept. Emptying the audit log is a deliberate exception to
-    its append-only rule, which protects the history of records that exist. The reset restores a
-    disposable fixture, like reloading a database snapshot: the records the log describes are
-    gone, and keeping their entries would leave a growing pile of rows about records that no
-    longer exist, interleaved with the new history. Id sequences and asset tags restart too, so
-    the demo is the same every day. Visitors never see it half done: the transaction commits all
-    of it or none.
+    Tickets (with their comments and equipment links), equipment and articles are removed and the
+    demo is created again; accounts are kept. The audit log is never changed: the history of the
+    removed records stays as it was, the new records' history is added after it, and the reset
+    itself is recorded as one more entry with what it removed and created. Ids and asset tags are
+    never reused (their sequences carry on), so an old entry can't come to describe a new record.
+    Visitors never see the demo half replaced: the transaction commits all of it or none.
     """
     settings = settings or get_settings()
     if not settings.demo_reset_enabled:
@@ -465,15 +477,26 @@ async def reset_demo(
     missing = [email for email, _, role in DEMO_USERS if roles.get(email) != role]
     if missing:
         raise DemoResetRefused(f"Not a demo database: missing demo accounts {missing}")
+    now = now or sla.utcnow()
 
-    await session.execute(text(f"TRUNCATE {', '.join(DEMO_TABLES)} RESTART IDENTITY"))
-    await session.execute(text("ALTER SEQUENCE asset_tag_seq RESTART"))
-    session.expunge_all()  # anything loaded before the truncate is gone
+    removed = {}
+    for name, table in _RESET_DELETES:
+        result = await session.execute(delete(table))
+        removed[name] = result.rowcount  # type: ignore[attr-defined]
+    session.expunge_all()  # objects loaded before the deletes may describe removed rows
 
-    result = await seed(session, settings=settings, now=now)
-    assert result is not None  # demo_reset_enabled implies demo_data_enabled
+    created = await seed(session, settings=settings, now=now)
+    assert created is not None  # demo_reset_enabled implies demo_data_enabled
+    changes = {f"{name}_removed": count for name, count in removed.items()}
+    changes |= {
+        "tickets_created": created.tickets,
+        "assets_created": created.assets,
+        "articles_created": created.articles,
+    }
+    # No actor: the worker, not a person, did this, as with the SLA monitor's entries.
+    audit.record(session, None, "demo", 0, "reset", changes, at=now)
     await session.commit()
-    return result
+    return DemoResetResult(removed=removed, created=created)
 
 
 async def main() -> None:

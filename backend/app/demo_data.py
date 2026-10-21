@@ -186,7 +186,7 @@ DEMO_ASSETS = [
         "Dell",
         "P2723DE 27-inch",
         "CN0H7X9V7429",
-        "Service desk, floor 1",
+        "Stockholm HQ",
         purchased=days(200),
         warranty_left=_warranty(3, days(200)),
     ),
@@ -242,10 +242,9 @@ DEMO_ASSETS = [
         "Apple",
         "iPhone 15",
         "F2LXK9QPN1",
-        "Service desk, floor 1",
+        "Stockholm HQ",
         purchased=days(60),
         warranty_left=_warranty(1, days(60)),
-        notes="Spare handset for same-day replacements.",
     ),
     DemoAsset(
         "printer-floor2",
@@ -410,6 +409,7 @@ DEMO_TICKETS = [
         steps=(
             Escalate(minutes(20), Priority.P2),
             Assign(minutes(25), AGENT),
+            Link(minutes(26), "erik-laptop"),
             Reply(
                 minutes(40),
                 AGENT,

@@ -72,7 +72,7 @@ Built with **Angular 22**, **FastAPI**, **PostgreSQL** and **Redis**, containeri
   - **Suggestions** (`/api/articles/suggest`) power the "These articles might help" box on the new-ticket form and the staff view of a ticket. Articles containing every word of the title come first. Only when there are none does it fall back to articles containing any word, dropping ones that are much weaker than the best.
   - **Safe rendering:** article Markdown is rendered with `marked` and bound through Angular's HTML sanitiser, which removes scripts, event handlers and `javascript:` links. Tests cover hostile content.
   - Staff can delete drafts. Deleting a published article is admin-only. Every change is audited.
-- **Audit log screen (admins):** filter by record type, action, person, record number and date range, expand any entry to its raw JSON, and export the filtered result as CSV. Entries are only ever inserted, never edited or deleted. The export is capped at 10,000 rows and neutralises spreadsheet formulas (a name like `=HYPERLINK(...)` is written as text), so opening it in Excel cannot run anything.
+- **Audit log screen (admins):** filter by record type, action, person, record number and date range, expand any entry to its raw JSON, and export the filtered result as CSV. Entries are only ever inserted, never edited or deleted (the public demo's daily reset, which replaces the whole demo, is the one exception; see [Demo accounts](#demo-accounts)). The export is capped at 10,000 rows and neutralises spreadsheet formulas (a name like `=HYPERLINK(...)` is written as text), so opening it in Excel cannot run anything.
 - **Audit trail:** every write records who did it and the before/after values in the same database transaction as the change, so a rolled-back request leaves no trace.
 
 ## Architecture
@@ -136,7 +136,15 @@ npm start          # http://localhost:4200, proxies /api to :8000
 
 ### Demo accounts
 
-All demo accounts use the password `deskflow123`. The seed also adds sample knowledge base articles (and one draft), so a fresh install is not empty.
+All demo accounts use the password `deskflow123`. The seed (`python -m app.seed`, idempotent) also fills a fresh install with a lived-in helpdesk:
+
+- **Knowledge base:** sample articles, and one draft.
+- **Tickets:** 20 from a handful of colleagues (who can't sign in), across every category, priority and status. Some are new and unassigned, some are in Alan Agent's queue, two wait on the requester with the SLA clock paused, two are at risk, two have breached, and the rest are resolved or closed, with replies and internal notes. Grace User has three of her own.
+- **Equipment:** 15 items, assigned, in stock, in repair and retired, linked to the tickets about them. Two warranties run out this month.
+- **History:** it is replayed through the app's own rules rather than inserted as finished rows: SLA deadlines, the workflow, asset tags, an audit entry for every change at the time it happened, and the SLA monitor once a minute, so the seeded at-risk and breach flags are exactly what the worker would have recorded. Times are relative to when it runs.
+- Tickets and equipment are only added to an empty helpdesk, so sample records never mix with real ones.
+
+**Daily reset (public demo).** SLA timers are wall-clock, so a demo seeded once is all breached within days, and visitors change things. When `SEED_DEMO_DATA=true` is set on the worker, it recreates the demo every day at 03:30 UTC: tickets, comments, equipment, articles and the audit log are emptied and seeded again relative to the current time, in one transaction, so visitors never see it half done. Accounts are kept. It never runs by default, not even in development, and it refuses unless the documented demo accounts exist. Emptying the audit log is a deliberate exception to its append-only rule: the reset restores a disposable fixture, like reloading a database snapshot, and keeping entries about records that no longer exist would only clutter the log.
 
 | Role | Email |
 |---|---|
@@ -178,7 +186,7 @@ Create a project with five services, all deployed from this repository:
 | **Postgres** | (database template) | |
 | **Redis** | (database template) | |
 | **api** | `/backend` | `ENVIRONMENT=production`<br>`JWT_SECRET` (at least 32 characters: `openssl rand -hex 32`)<br>`DATABASE_URL=${{Postgres.DATABASE_URL}}`<br>`REDIS_URL=${{Redis.REDIS_URL}}`<br>`PORT=8000`<br>`ADMIN_EMAIL`, `ADMIN_PASSWORD` (see below) |
-| **worker** | `/backend` | `SERVICE_ROLE=worker`<br>`ENVIRONMENT=production`<br>`JWT_SECRET=${{api.JWT_SECRET}}`<br>`DATABASE_URL`, `REDIS_URL` as for the api |
+| **worker** | `/backend` | `SERVICE_ROLE=worker`<br>`ENVIRONMENT=production`<br>`JWT_SECRET=${{api.JWT_SECRET}}`<br>`DATABASE_URL`, `REDIS_URL` as for the api<br>`SEED_DEMO_DATA=true` only for a public demo (daily reset) |
 | **web** | `/frontend` | `API_UPSTREAM=http://${{api.RAILWAY_PRIVATE_DOMAIN}}:8000` |
 
 Then in the dashboard:
@@ -197,7 +205,8 @@ What the containers do on every deploy, which you can rely on:
   `ADMIN_PASSWORD`.
 - **Demo accounts are off in production.** They have publicly documented passwords, so they are only
   created in production if you set `SEED_DEMO_DATA=true`. For a public portfolio demo that is the point,
-  but never do it for real data.
+  but never do it for real data. Set it on the **api** to seed the demo on deploy, and on the **worker** as
+  well to reset it daily (the reset empties tickets, equipment, articles and the audit log).
 - The app **refuses to start in production** with the built-in development secret or one shorter than
   32 characters, and rejected secrets are not written to the logs.
 - Sign-in is **rate limited** through Redis: five wrong passwords per person and address, and 30 per
@@ -229,7 +238,7 @@ Notes:
 | `SERVICE_ROLE` | api, worker | `api` | `worker` runs the background worker instead of the web server |
 | `PORT`, `HOST` | api | `8000`, `0.0.0.0` | Listen port and address |
 | `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `ADMIN_NAME` | api | none | Creates the first admin if missing |
-| `SEED_DEMO_DATA` | api | `true` in development, `false` in production | Demo users and articles |
+| `SEED_DEMO_DATA` | api, worker | `true` in development, `false` in production | Demo users, articles, tickets and equipment. On the worker, an explicit `true` also resets the demo daily |
 | `ANTHROPIC_API_KEY` | api | none (assistant disabled) | Enables the troubleshooting assistant |
 | `ASSISTANT_MODEL`, `ASSISTANT_EFFORT` | api | `claude-opus-5-5`, `medium` | Model and reasoning effort; a cheaper model is a fine choice here |
 | `ASSISTANT_MAX_REQUESTS`, `ASSISTANT_WINDOW_SECONDS` | api | `20`, `3600` | Per-person usage limit |
